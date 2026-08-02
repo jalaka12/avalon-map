@@ -2,218 +2,811 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=3.0,user-scalable=yes">
-<title>阿瓦隆地图</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>阿瓦隆全图 · 守图人</title>
 <style>
-:root{--bg:#0d0a08;--panel:#1a1512;--border:#3d332a;--dim:#8a7d6d;--txt:#c4b5a0;--bri:#e8dcc8;--gold:#b8860b;--cur:#daa520;--rev:#4a6741;--fog:#1a1512}
+/* ══════════════════════════════════════════════════
+   「守图人的制图桌」 v4
+   烛金=当前/可交互 · 苔绿=已探索 · 冥灰=未探索
+   巨神柱残焰驱动全局主题：金(安) → 锈(警) → 血(危)
+   控件与图例：暗色磨砂玻璃 + 汉字
+   ══════════════════════════════════════════════════ */
+:root{
+    --bg:#0b0806;
+    --desk:#17110a;
+    --line:#2c251e;
+    --line2:rgba(69,58,44,.65);
+    --ink:#8a7d6d;
+    --ink2:#c4b5a0;
+    --ink3:#e8dcc8;
+    --moss:#5e7a4f;
+    --moss2:#7fa065;
+    --glass:rgba(24,19,14,.55);
+    --glass-hi:rgba(38,30,20,.65);
+    /* 主题变量：由巨神柱残焰状态切换 */
+    --accent:#daa520;
+    --accent2:#e8c36a;
+    --aglow:rgba(218,165,32,.45);
+    --vig:rgba(218,165,32,0);
+}
+#shell.th-warn{
+    --accent:#c07a3a;
+    --accent2:#dda05a;
+    --aglow:rgba(192,122,58,.5);
+    --vig:rgba(160,100,40,.12);
+}
+#shell.th-danger{
+    --accent:#c04040;
+    --accent2:#e06060;
+    --aglow:rgba(208,80,80,.55);
+    --vig:rgba(150,30,30,.22);
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--txt);font-family:Georgia,serif;font-size:13px;padding:8px;min-height:100vh}
-hdr{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;margin-bottom:8px;background:var(--panel);border:1px solid var(--border);border-radius:4px}
-hdr .t{font-size:16px;font-weight:600;color:var(--gold)}
-hdr .i{font-size:11px;color:var(--dim)}
-.tabs{display:flex;gap:3px;margin-bottom:8px}
-.tb{padding:5px 12px;background:var(--panel);border:1px solid var(--border);color:var(--dim);border-radius:3px 3px 0 0;cursor:pointer;font-family:inherit;font-size:11px}
-.tb:hover{color:var(--txt)}
-.tb.on{color:var(--gold);border-color:var(--gold);border-bottom-color:transparent;background:var(--bg)}
-.pnl{display:none}
-.pnl.on{display:block}
-table.mp{border-collapse:collapse;width:100%;max-width:1000px;margin:0 auto;font-size:10px}
-table.mp th{background:var(--panel);color:var(--dim);padding:3px 5px;text-align:center;font-weight:normal;border:1px solid var(--border)}
-table.mp th.rl{color:var(--gold);font-weight:bold;width:35px}
-table.mp td{text-align:center;padding:2px;border:1px solid var(--border);vertical-align:top;width:88px;height:105px}
-td.fg{background:var(--fog);background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(61,51,42,.08) 3px,rgba(61,51,42,.08) 6px)}
-td.bl{background:#111;color:#444;text-align:center;vertical-align:middle}
-td.bl::after{content:'🚫';font-size:16px;opacity:.25}
-.card{display:flex;flex-direction:column;align-items:center;gap:2px;border-radius:3px;padding:2px;cursor:pointer;height:100%;justify-content:center}
-.card:hover{background:rgba(255,255,255,.04)}
-.card.cur{background:rgba(218,165,32,.08);box-shadow:0 0 8px rgba(218,165,32,.25);border:1px solid var(--cur);animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 4px rgba(218,165,32,.15)}50%{box-shadow:0 0 14px rgba(218,165,32,.4)}}
-.card.rev{border:1px solid rgba(74,103,65,.25)}
-.card.fog{opacity:.45;filter:grayscale(.85);pointer-events:none}
-.im{width:72px;height:48px;border-radius:2px;overflow:hidden;background:rgba(61,51,42,.15);flex-shrink:0;display:flex;align-items:center;justify-content:center}
-.im img{width:100%;height:100%;object-fit:cover}
-.im .ph{font-size:22px;opacity:.3}
-.num{font-family:Consolas,monospace;font-size:12px;font-weight:bold;color:var(--dim)}
-.cur .num{color:var(--gold)}
-.nm{font-size:9px;color:var(--dim);text-align:center;line-height:1.2;max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cur .nm{color:var(--bri)}
-.rp{font-size:8px;color:var(--dim);opacity:.5}
-.mo{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:999;display:none;align-items:center;justify-content:center}
-.mo.on{display:flex}
-.mb{background:var(--panel);border:1px solid var(--border);border-radius:6px;max-width:440px;width:92%;max-height:85vh;overflow-y:auto;padding:18px;box-shadow:0 6px 30px rgba(0,0,0,.6)}
-.mi{width:100%;height:180px;border-radius:4px;overflow:hidden;margin-bottom:10px;background:rgba(61,51,42,.2)}
-.mi img{width:100%;height:100%;object-fit:cover}
-.mt{font-size:17px;color:var(--gold);margin-bottom:3px}
-.mn{font-size:10px;color:var(--dim);font-family:monospace;margin-bottom:8px}
-.md{font-size:11px;color:var(--dim);line-height:1.6}
-.mc{font-size:10px;color:#a0522d;margin-top:6px}
-.mx{display:block;width:100%;margin-top:12px;padding:7px;background:var(--border);border:none;color:var(--txt);border-radius:3px;cursor:pointer;font-family:inherit;font-size:12px}
-.mx:hover{background:#a0522d}
-.sp{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;padding:8px}
-.sc{background:var(--panel);border:1px solid var(--border);border-radius:6px;overflow:hidden;cursor:pointer}
-.sc:hover{border-color:var(--gold)}
-.sc.fog{opacity:.35;filter:grayscale(.85);pointer-events:none}
-.si{width:100%;height:110px;overflow:hidden}
-.si img{width:100%;height:100%;object-fit:cover}
-.sf{padding:8px 10px}
-.sn{font-size:13px;color:var(--gold);font-weight:600}
-.su{font-size:9px;color:var(--dim);font-family:monospace}
-.sd{font-size:10px;color:var(--dim);margin-top:3px}
-.sub-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:6px}
-.sb{background:var(--panel);border:1px solid var(--border);border-radius:4px;overflow:hidden;cursor:pointer}
-.sb.fog{opacity:.3;pointer-events:none}
-.si2{width:100%;height:70px;overflow:hidden}
-.si2 img{width:100%;height:100%;object-fit:cover}
-.sl{font-size:9px;color:var(--dim);text-align:center;padding:3px}
+html,body{width:100%;height:100vh;height:100dvh;overflow:hidden}
+body{
+    background-color:var(--bg);
+    background-repeat:no-repeat;background-position:center;background-attachment:fixed;background-size:cover;
+    color:var(--ink);
+    font-family:Georgia,'Times New Roman','宋体',serif;
+    font-size:13px;
+    user-select:none;-webkit-user-select:none;
+}
+body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.06) 3px,rgba(0,0,0,.06) 4px);
+}
+
+/* ── 骨架 ─────────────────────────────────────── */
+.map-shell{position:relative;z-index:1;display:flex;flex-direction:column;height:100%;padding:10px 12px;gap:6px}
+.map-shell.fs{position:fixed;inset:0;z-index:9999;background:transparent;padding:14px 18px}
+
+/* ── 标题带 ───────────────────────────────────── */
+.head-band{
+    display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;flex-shrink:0;
+    padding:2px 4px 7px;
+    border-bottom:1px solid transparent;
+    border-image:linear-gradient(90deg,transparent,var(--line2) 20%,var(--line2) 80%,transparent) 1;
+}
+.map-title{
+    font-size:19px;font-weight:700;letter-spacing:4px;
+    background:linear-gradient(135deg,var(--accent2),var(--accent) 60%,#8a6510);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.map-title::before{content:'❖';font-size:13px;margin-right:6px;-webkit-text-fill-color:var(--accent)}
+.head-band .spring{margin-left:auto}
+
+/* 巨神柱残焰 */
+.pillar{display:flex;align-items:center;gap:4px;padding:5px 11px;border:1px solid var(--line2);border-radius:4px;background:var(--glass);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.pillar .p-label{font-size:11px;color:var(--ink2);letter-spacing:2px;margin-right:3px}
+.pillar .p-days{font-size:14px;font-weight:700;color:var(--ink3);margin-left:5px;font-variant-numeric:tabular-nums}
+.flame{width:9px;height:14px;border-radius:50% 50% 50% 50%/62% 62% 38% 38%;background:#2c241b;border:1px solid #453a2c;flex-shrink:0;transition:background .6s,border-color .6s,box-shadow .6s}
+.flame.lit{background:linear-gradient(180deg,var(--accent2),var(--accent) 55%,#6a4a10);border-color:var(--accent);box-shadow:0 0 8px var(--aglow);animation:flicker 1.8s ease-in-out infinite}
+#shell.th-danger .flame.lit{animation-duration:.8s}
+@keyframes flicker{0%,100%{transform:scaleY(1) skewX(0)}30%{transform:scaleY(1.1) skewX(-2deg)}60%{transform:scaleY(.92) skewX(2deg)}}
+
+/* ── 控制带 ───────────────────────────────────── */
+.ctrl-band{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0;padding:2px 2px}
+.loc-info{font-size:12px;color:var(--ink);white-space:nowrap;margin-right:auto}
+.loc-info b{font-size:16px;color:var(--accent2);font-weight:700;letter-spacing:2px;margin-right:6px;transition:color .6s}
+.grp{display:flex;gap:5px;align-items:center}
+.grp + .grp{margin-left:4px;padding-left:10px;border-left:1px solid var(--line)}
+
+/* 暗色磨砂玻璃按钮 + 汉字 */
+.btn{
+    min-height:36px;padding:7px 13px;
+    background:var(--glass);color:var(--ink2);
+    border:1px solid var(--line2);border-radius:4px;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    font-family:inherit;font-size:12px;letter-spacing:2px;
+    cursor:pointer;white-space:nowrap;
+    transition:color .25s,border-color .25s,box-shadow .25s,transform .12s,background .25s;
+}
+.btn:hover{color:var(--ink3);background:var(--glass-hi);box-shadow:0 2px 10px rgba(0,0,0,.45)}
+.btn:active{transform:scale(.93)}
+.btn.on{
+    color:var(--accent2);border-color:var(--accent);
+    background:linear-gradient(180deg,rgba(48,38,20,.7),rgba(30,23,14,.7));
+    box-shadow:inset 0 0 12px rgba(218,165,32,.12),0 0 10px var(--aglow);
+}
+.btn:disabled{opacity:.3;pointer-events:none}
+
+/* ── 地图区 ───────────────────────────────────── */
+.content{
+    flex:1;position:relative;min-height:0;overflow:hidden;
+    background:rgba(11,8,6,.38);   /* 半透明：无地图处透出页面底图 */
+    border:1px solid var(--line2);
+    box-shadow:inset 0 0 60px rgba(0,0,0,.35);
+}
+.content::after{
+    content:'';position:absolute;inset:0;pointer-events:none;z-index:5;
+    box-shadow:inset 0 0 120px 30px var(--vig);
+    transition:box-shadow .8s ease;
+}
+#shell.th-danger .content::after{animation:vigPulse 2.4s ease-in-out infinite}
+@keyframes vigPulse{0%,100%{opacity:.7}50%{opacity:1}}
+
+/* 8×10 全图视口 */
+.big-view{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none}
+.big-view.drag{cursor:grabbing}
+.stage{position:absolute;top:0;left:0;width:1800px;height:2136px;transform-origin:0 0;will-change:transform}
+.stage img.base{position:absolute;user-select:none;-webkit-user-drag:none;pointer-events:none}
+/* 手绘整图铺核心区（西2~东3 × 北4~南1）：地图模式底图 */
+.base-sketch{left:30%;top:12.5%;width:60%;height:75%}
+/* 鸟瞰模式：8×10 原图拼接垫底，未探索格磨砂遮蔽 */
+.base-aerial{inset:0;width:100%;height:100%}
+.cell .frost{position:absolute;inset:0;background:rgba(13,10,7,.4);backdrop-filter:blur(7px) grayscale(.55) brightness(.7);-webkit-backdrop-filter:blur(7px) grayscale(.55) brightness(.7);pointer-events:none;box-shadow:inset 0 0 0 1px rgba(69,58,44,.35)}
+/* 街景模式：当前地点大图 */
+.street-view{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;cursor:zoom-in}
+/* 图瓦坦：五牌并列（已解锁去磨砂，180/185 常驻牌追加） */
+.tuv-row{display:none;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:12px;overflow:auto;max-width:96%}
+.tuv-slot{position:relative;width:min(16%,150px);min-width:86px;aspect-ratio:922/1365;border:2px solid #241e17;border-radius:3px;overflow:hidden;background:#100d0a;transition:border-color .3s,box-shadow .3s;cursor:default}
+.tuv-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;user-select:none;pointer-events:none}
+.tuv-slot .frost{position:absolute;inset:0;background:rgba(13,10,7,.45);backdrop-filter:blur(7px) grayscale(.55) brightness(.7);-webkit-backdrop-filter:blur(7px) grayscale(.55) brightness(.7);box-shadow:inset 0 0 0 1px rgba(69,58,44,.35);pointer-events:none}
+.tuv-slot.rev{cursor:pointer;border-color:var(--moss)}
+.tuv-slot.rev:hover{border-color:var(--moss2);box-shadow:0 0 16px rgba(94,122,79,.4)}
+.tuv-slot.cur{border-color:var(--accent);box-shadow:0 0 24px var(--aglow)}
+.tuv-slot .slot-tag{position:absolute;left:0;right:0;bottom:0;padding:3px 2px;font-size:10px;letter-spacing:1px;text-align:center;background:rgba(10,8,6,.88);color:var(--ink2);pointer-events:none}
+.tuv-slot.cur .slot-tag{color:var(--accent2)}
+.street-view img{max-width:88%;max-height:82%;object-fit:contain;border:1px solid var(--line2);outline:1px solid #161210;outline-offset:5px;box-shadow:0 12px 50px rgba(0,0,0,.75);user-select:none;-webkit-user-drag:none;pointer-events:none}
+.street-view .sv-cap{padding:6px 20px;font-size:13px;letter-spacing:2px;color:var(--ink2);border:1px solid var(--line2);background:var(--glass);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:4px;pointer-events:none}
+.street-view .sv-cap b{color:var(--accent2);font-weight:700}
+
+.cells{position:absolute;inset:0;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(8,1fr)}
+.cell{position:relative;overflow:hidden}
+.cell img.ph{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;user-select:none;-webkit-user-drag:none;pointer-events:none}
+.cell.explored{cursor:pointer}
+.cell.explored:hover::after{content:'';position:absolute;inset:0;box-shadow:inset 0 0 30px var(--aglow);pointer-events:none;z-index:2}
+/* 地图模式：未探索半遮蔽保质感，已探索苔痕 */
+.cell .veil{position:absolute;inset:0;background:rgba(13,10,7,.5);pointer-events:none}
+.cell .moss-mark{position:absolute;inset:0;background:rgba(94,122,79,.16);border:1px solid rgba(94,122,79,.4);pointer-events:none}
+
+/* 图瓦坦牌组指示 */
+.cell .tuv-deck{position:absolute;left:3px;right:3px;bottom:3px;display:flex;gap:3px;justify-content:center;z-index:2;pointer-events:none}
+.tuv-card{flex:1;max-width:18px;height:22px;border:1px solid #453a2c;background:rgba(13,10,7,.85);color:#5a5045;font-size:10px;line-height:22px;text-align:center;border-radius:2px;transition:all .4s}
+.tuv-card.on{border-color:var(--accent);color:var(--accent2);box-shadow:0 0 6px var(--aglow)}
+
+/* 当前位置高亮 */
+.hl{position:absolute;inset:0;z-index:3;pointer-events:none;border:2px solid var(--accent);box-shadow:inset 0 0 24px var(--aglow),0 0 24px var(--aglow);animation:breathe 2.6s ease-in-out infinite;transition:border-color .6s,box-shadow .6s}
+.hl .dot{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:radial-gradient(circle,var(--accent2),var(--accent) 60%);box-shadow:0 0 16px var(--accent),0 0 34px var(--aglow)}
+@keyframes breathe{0%,100%{opacity:.62}50%{opacity:1}}
+
+
+/* ── 悬浮图例面板（可拖动磨砂玻璃） ───────────── */
+.legend-panel{
+    position:absolute;left:14px;bottom:14px;z-index:7;
+    background:var(--glass);border:1px solid var(--line2);border-radius:6px;
+    backdrop-filter:blur(10px) saturate(1.15);-webkit-backdrop-filter:blur(10px) saturate(1.15);
+    box-shadow:0 6px 22px rgba(0,0,0,.55),inset 0 1px 0 rgba(232,220,200,.06);
+    padding:9px 13px;font-size:12px;letter-spacing:1.5px;color:var(--ink2);
+    cursor:grab;touch-action:none;
+}
+.legend-panel.dragging{cursor:grabbing;box-shadow:0 10px 30px rgba(0,0,0,.7)}
+.lg-row{display:flex;align-items:center;gap:7px;padding:2px 0;white-space:nowrap}
+.lg-cur{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--aglow);flex-shrink:0;transition:background .6s}
+.lg-exp{width:9px;height:9px;background:var(--moss);transform:rotate(45deg);flex-shrink:0}
+.lg-un{width:8px;height:8px;border:1px solid var(--ink);flex-shrink:0}
+.lg-sep{height:1px;background:var(--line2);margin:6px 0}
+.lg-stat{color:var(--ink3);font-variant-numeric:tabular-nums;font-weight:600}
+.lg-grip{margin-top:5px;text-align:center;font-size:9px;color:#5a5045;letter-spacing:3px}
+
+/* ── 底栏：操作提示 ───────────────────────────── */
+.bottom-bar{
+    flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    padding:6px 8px 2px;font-size:11px;letter-spacing:1.5px;color:#6b6055;
+    border-top:1px solid transparent;
+    border-image:linear-gradient(90deg,transparent,var(--line2) 20%,var(--line2) 80%,transparent) 1;
+}
+
+/* ── 灯箱（原图 + 缩放拖拽；全岛带迷雾磨砂遮罩） ── */
+.lb{display:none;position:fixed;inset:0;z-index:10000;background:rgba(5,3,2,.95);cursor:grab;animation:fadeIn .25s ease}
+.lb.on{display:flex;align-items:center;justify-content:center}
+.lb.dragging{cursor:grabbing}
+.lb-stage{position:relative;transform-origin:0 0;will-change:transform}
+.lb-stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;border:1px solid var(--line2);outline:1px solid #161210;outline-offset:5px;box-shadow:0 0 60px rgba(0,0,0,.85);user-select:none;-webkit-user-drag:none}
+.lb .lb-x{position:absolute;top:16px;right:20px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--ink2);font-size:20px;border:1px solid var(--line2);border-radius:4px;cursor:pointer;z-index:2;background:var(--glass);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all .25s}
+.lb .lb-x:hover{color:var(--accent2);border-color:var(--accent)}
+.lb .lb-cap{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);padding:7px 22px;font-size:13px;letter-spacing:2px;color:var(--ink2);border:1px solid var(--line2);background:rgba(18,14,10,.92);border-radius:4px;white-space:nowrap;z-index:2}
+.lb .lb-cap b{color:var(--accent2);font-weight:700}
+.lb .lb-hint{position:absolute;top:20px;left:50%;transform:translateX(-50%);font-size:10px;letter-spacing:2px;color:#5a5045;z-index:2;white-space:nowrap}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* ── 响应式 ───────────────────────────────────── */
+@media (max-width:600px){
+    .map-title{font-size:16px;letter-spacing:2px}
+    .loc-info b{font-size:14px}
+    .btn{min-height:38px;padding:8px 10px;font-size:11px}
+    .bhint{display:none}
+    .pillar .p-label{display:none}
+    .legend-panel{font-size:11px;padding:7px 10px}
+}
+@media (prefers-reduced-motion:reduce){
+    .hl,.flame.lit,#shell.th-danger .content::after{animation:none}
+    .lb{animation:none}
+}
 </style>
 </head>
 <body>
 
-<hdr><span class="t">🗺 阿瓦隆</span><span class="i" id="info">加载中…</span></hdr>
-<div class="tabs">
-  <button class="tb on" data-tab="main">🗺 阿瓦隆地图</button>
-  <button class="tb" data-tab="special">🏛 特殊地点</button>
+<div class="map-shell" id="shell">
+    <!-- 标题带：标题 + 巨神柱残焰 -->
+    <div class="head-band">
+        <span class="map-title">阿瓦隆全图</span>
+        <span class="spring"></span>
+        <span class="pillar" id="pillar" style="display:none" title="巨神柱残焰：柱子燃尽之日，阿瓦隆陷落之时">
+            <span class="p-label">巨神柱残焰</span>
+            <span class="flame"></span><span class="flame"></span><span class="flame"></span><span class="flame"></span>
+            <span class="flame"></span><span class="flame"></span><span class="flame"></span><span class="flame"></span>
+            <span class="p-days" id="pillarDays"></span>
+        </span>
+    </div>
+
+    <!-- 控制带：当前位置 + 模式/视图/缩放（汉字磨砂按钮） -->
+    <div class="ctrl-band">
+        <span class="loc-info" id="locInfo">—</span>
+        <span class="grp">
+            <button class="btn" id="bA">鸟瞰</button>
+            <button class="btn on" id="bS">街景</button>
+            <button class="btn" id="bM">地图</button>
+        </span>
+        <span class="grp">
+            <button class="btn" id="bZo" title="缩小">缩小</button>
+            <button class="btn" id="bZi" title="放大">放大</button>
+            <button class="btn" id="bHome" title="回到当前位置">归位</button>
+        </span>
+        <span class="grp">
+            <button class="btn" id="bFS" title="全屏">全屏</button>
+        </span>
+    </div>
+
+    <!-- 地图区 -->
+    <div class="content" id="ct">
+        <div class="big-view" id="bv">
+            <div class="stage" id="stage"></div>
+        </div>
+        <!-- 街景模式：当前地点大图 / 图瓦坦五牌并列 -->
+        <div class="street-view" id="sv">
+            <div class="tuv-row" id="svRow"></div>
+            <img id="svImg" src="" alt="">
+            <span class="sv-cap" id="svCap"></span>
+        </div>
+
+        <!-- 悬浮图例面板（可拖动） -->
+        <div class="legend-panel" id="lgPanel">
+            <div class="lg-row"><span class="lg-cur"></span>当前位置</div>
+            <div class="lg-row"><span class="lg-exp"></span>已探索</div>
+            <div class="lg-row"><span class="lg-un"></span>未探索</div>
+            <div class="lg-sep"></div>
+            <div class="lg-row lg-stat" id="expStat">已探索 —</div>
+            <div class="lg-grip">⋮⋮</div>
+        </div>
+    </div>
+
+    <!-- 底栏：操作提示 -->
+    <div class="bottom-bar">
+        <span class="bhint">拖拽平移 · 滚轮/双指缩放 · 点击已探索格查看原图</span>
+    </div>
 </div>
-<div class="pnl on" id="p-main"><table class="mp" id="grid"></table></div>
-<div class="pnl" id="p-special"><div class="sp" id="special-panel"></div></div>
-<div class="mo" id="modal"><div class="mb">
-  <div class="mi" id="mi"></div><div class="mt" id="mt"></div><div class="mn" id="mn"></div>
-  <div class="md" id="md"></div><div class="mc" id="mc"></div><button class="mx" onclick="cls()">关闭</button>
-</div></div>
+
+<!-- 原图灯箱 -->
+<div class="lb" id="lb">
+    <span class="lb-hint">滚轮缩放 · 拖拽移动 · 双击复位 · ESC 关闭</span>
+    <span class="lb-x" id="lbX">✕</span>
+    <div class="lb-stage" id="lbStage">
+        <img id="lbImg" src="" alt="">
+    </div>
+    <span class="lb-cap" id="lbCap"></span>
+</div>
 
 <script>
+(function(){
+'use strict';
 
-const GRID=[[0,0,0,0,0,0,160,-1,161,0],[0,0,185,150,151,152,153,154,155,0],[0,0,199,131,132,133,134,135,136,-1],[0,0,-1,111,112,113,114,115,138,190],[0,156,139,116,106,102,107,117,140,157],[0,0,141,118,103,101,104,119,-1,0],[0,0,0,120,108,105,109,0,0,0],[0,0,0,0,0,0,0,0,0,162]];
-const ROWS=["北5","北4","北3","北2","北1","中轴","南1","南2"];
-const COLS=["西5","西4","西3","西2","西1","中轴","东1","东2","东3","东4"];
-const INFO={"101":{"n":"昆纳赫特村","d":"远征队起点。巨神柱渐暗。","r":121},"102":{"n":"猎人森林","d":"鹿老大头骨祭坛。流浪猎人。"},"103":{"n":"武者集会","d":"沙地竞技场。商人与雇佣兵。"},"104":{"n":"礼堂废墟","d":"被烧焦的德鲁伊尸骸。"},"105":{"n":"荒剑冢","d":"巨人遗弃的巨剑。古钢大锤。"},"106":{"n":"先民坟山","d":"先民宝藏与冥尘。","r":123},"107":{"n":"白化村","d":"白色结晶苔藓。法埃尔旧居。"},"108":{"n":"蛆林","d":"蛆虫覆盖的扭曲森林。","r":110},"109":{"n":"避难岛","d":"赤死病隔离区。"},"110":{"n":"闹鬼的蛆林","d":"闹鬼的扭曲森林。"},"111":{"n":"高墙之下","d":"图瓦坦城墙。白骨裂缝。"},"112":{"n":"染血峡谷","d":"三军古战场。"},"113":{"n":"镜湖","d":"天空之镜。湖中女神。","r":122},"114":{"n":"盘根树林","d":"古老树根迷宫。先民面具。"},"115":{"n":"巨人阶梯","d":"巨人阶梯。天母教寺庙。","r":125},"116":{"n":"远郡","d":"悬岩下最大农庄。","r":126},"117":{"n":"第一村","d":"人类首城延塔哲遗址。"},"118":{"n":"奔涌平原","d":"梅林开垦的圣地。"},"119":{"n":"舰队残骸","d":"亚瑟舰队的沉船。"},"120":{"n":"南之角","d":"双子塔灯塔。兰马洛克。"},"121":{"n":"残败的昆纳赫特","d":"冥尘之风后。"},"122":{"n":"干涩的湖泊","d":"镜湖干涸。冥石尖塔。"},"123":{"n":"沉没的坟山","d":"被冥尘淹没。"},"125":{"n":"巨人阶梯(废墟)","d":"寺庙被烧毁。"},"126":{"n":"倒塌的巨石","d":"悬岩坠落后。"},"131":{"n":"木墙城","d":"背靠高墙。乌尔坦。","r":137},"132":{"n":"宁静之脸","d":"巨型雕像。眼部水池。"},"133":{"n":"月环阵","d":"德鲁伊巨石阵。阿莫金。"},"134":{"n":"法福瑞","d":"混乱紧固的村庄。","r":147},"135":{"n":"邦多卡","d":"两座石山间隧道。","r":148},"136":{"n":"库瓦赫石塔","d":"囚禁远古威胁。","r":149},"137":{"n":"被征服的木墙城","d":"大门砸烂。燃烧。"},"138":{"n":"瘟疫街区","d":"瘟疫红旗。拥挤。","r":142},"139":{"n":"大灾变","d":"扭曲地形。天然冥石。"},"140":{"n":"黑暗沼泽","d":"修道院遗址。沼妖。"},"141":{"n":"冥尘边界","d":"欧林的小屋。"},"142":{"n":"安静的街区","d":"争斗后宁静。"},"147":{"n":"被遗弃的法福瑞","d":"废弃村庄。"},"148":{"n":"法多卡","d":"人口过多城镇。"},"149":{"n":"残破的石塔","d":"奥秘吞噬者。螺旋指环。"},"150":{"n":"守卫之谷","d":"通向图瓦坦的路。白骨。"},"151":{"n":"高丘","d":"阿格规文守望塔。"},"152":{"n":"半路村","d":"四路交汇。言和石。","r":158},"153":{"n":"蕨海","d":"蕨丛覆盖。洞窟。"},"154":{"n":"骑士团之墓","d":"亚瑟与骑士长眠。"},"155":{"n":"低语森林","d":"迷雾。妮安特隐居。"},"156":{"n":"大瀑布","d":"崖壁三张人脸。"},"157":{"n":"闪烁平原","d":"摩甘娜塔楼遗址。"},"158":{"n":"谈判会场","d":"各势力旗帜。"},"160":{"n":"鸦巢城","d":"莫瑞甘后裔。鲜血祭坛。","r":165},"161":{"n":"远望角","d":"世界尽头。石制港口。","r":170},"162":{"n":"戈比尼克","d":"迷雾梦境。白色城堡。"},"165":{"n":"鸦巢废墟","d":"庙宇夷平。"},"170":{"n":"远望角避难所","d":"帐篷棚屋崖顶。"},"180":{"n":"欧林的哨站","d":"冥尘边界前哨。"},"185":{"n":"图瓦坦之心","d":"颠倒的卡梅洛。亚瑟残影。"},"190":{"n":"卡梅洛","d":"阿瓦隆权力中心。","r":195},"195":{"n":"被包围的卡梅洛","d":"难民与武装者。"},"199":{"n":"图瓦坦","d":"先民故都。冥尘扭曲之城。"}};
-const CONNS={"101":[106,102,107,103,104,108,105,109],"102":[112,113,114,106,107,103,101,104],"103":[116,106,102,118,101,120,108,105],"104":[102,107,117,101,119,105,109],"105":[103,101,104,108,109],"106":[111,112,113,116,102,118,103,101],"107":[113,114,115,102,117,101,104,119],"108":[118,103,101,120,105],"109":[101,104,119,105],"110":[],"111":[199,131,132,112,139,116,106],"112":[131,132,133,111,113,116,106,102],"113":[132,133,134,112,114,106,102,107],"114":[133,134,135,113,115,102,107,117],"115":[134,135,136,114,138,107,117,140],"116":[111,112,139,106,141,118,103],"117":[114,115,138,107,140,104,119],"118":[139,116,106,141,103,120,108],"119":[107,117,140,104,109],"120":[141,118,103,108],"121":[],"122":[],"123":[],"125":[],"126":[],"131":[185,150,151,199,132,111,112],"132":[150,151,152,131,133,111,112,113],"133":[151,152,153,132,134,112,113,114],"134":[152,153,154,133,135,113,114,115],"135":[153,154,155,134,136,114,115,138],"136":[154,155,135,115,138,190],"137":[],"138":[135,136,115,190,117,140,157],"139":[111,156,116,141,118],"140":[115,138,190,117,157,119],"141":[156,139,116,118,120],"142":[],"147":[],"148":[],"149":[],"150":[185,151,199,131,132],"151":[150,152,131,132,133],"152":[160,151,153,132,133,134],"153":[160,152,154,133,134,135],"154":[160,161,153,155,134,135,136],"155":[161,154,135,136],"156":[139,141],"157":[138,190,140],"158":[],"160":[152,153,154],"161":[154,155],"162":[],"165":[],"170":[],"180":[],"185":[150,199,131],"190":[136,138,140,157],"195":[],"199":[185,150,131,111]};
-const SPECIAL=[199,162,185];
-const CDN='https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations';
-function imgUrl(n){return CDN+'/正'+((n<=109)?'1':(n<=118)?'2':(n<=132)?'3':(n<=141)?'4':(n<=154)?'5':(n<=170)?'6':'7')+'_'+n+'.png';}
-function getAdjs(loc){return new Set(CONNS[loc]||[]);}
+/* ══════════════════════════════════════════════
+   图床配置：file:// 本地演示 / http(s) 酒馆 CDN
+   全岛原图 138MB 仅限本地；CDN 移植时再定压缩策略
+   ══════════════════════════════════════════════ */
+var IS_LOCAL = location.protocol === 'file:';
+var LOCAL_ROOT = 'file:///C:/迅雷下载/污痕圣杯 阿瓦隆的陨落 基础中文修复版 Tainted Grail Fall of Avalon/Mods/Images/地点卡插图';
+// 仓库 ~400MB 超 jsDelivr 缓存上限，cdn.jsdelivr.net 会 301 到 raw（被墙）；
+// testingcf（Cloudflare 节点）实测可正常回源，作为 CDN 主域
+var CDN_ROOT = 'https://testingcf.jsdelivr.net/gh/jalaka12/avalon-map@main/images';
+var PH = (IS_LOCAL ? LOCAL_ROOT + '/cropped' : CDN_ROOT + '/locations');
+var SKETCH = (IS_LOCAL ? LOCAL_ROOT + '/cropped' : CDN_ROOT) + '/6x6手绘地图.png'; // 手绘原图（低清源文件，永不压缩）
+var PAGE_BG = (IS_LOCAL ? LOCAL_ROOT + '/底图' : CDN_ROOT) + '/底图.jpg';   // 页面装饰底图（压缩版，暗遮罩下无损感）
+var BASE_AERIAL = (IS_LOCAL ? LOCAL_ROOT + '/cropped' : CDN_ROOT) + '/map-aerial.jpg'; // 鸟瞰底图（压缩拼接小图，省资源）
+var CARD_AR = 922/1365;      // 单卡宽高比
 
+/* ── 8×10 系统坐标 ── */
+var C = {"101":{"row":5,"col":5,"rowName":"中轴","colName":"中轴"},"102":{"row":4,"col":5,"rowName":"北1","colName":"中轴"},"103":{"row":5,"col":4,"rowName":"中轴","colName":"西1"},"104":{"row":5,"col":6,"rowName":"中轴","colName":"东1"},"105":{"row":6,"col":5,"rowName":"南1","colName":"中轴"},"106":{"row":4,"col":4,"rowName":"北1","colName":"西1"},"107":{"row":4,"col":6,"rowName":"北1","colName":"东1"},"108":{"row":6,"col":4,"rowName":"南1","colName":"西1"},"109":{"row":6,"col":6,"rowName":"南1","colName":"东1"},"111":{"row":3,"col":3,"rowName":"北2","colName":"西2"},"112":{"row":3,"col":4,"rowName":"北2","colName":"西1"},"113":{"row":3,"col":5,"rowName":"北2","colName":"中轴"},"114":{"row":3,"col":6,"rowName":"北2","colName":"东1"},"115":{"row":3,"col":7,"rowName":"北2","colName":"东2"},"116":{"row":4,"col":3,"rowName":"北1","colName":"西2"},"117":{"row":4,"col":7,"rowName":"北1","colName":"东2"},"118":{"row":5,"col":3,"rowName":"中轴","colName":"西2"},"119":{"row":5,"col":7,"rowName":"中轴","colName":"东2"},"120":{"row":6,"col":3,"rowName":"南1","colName":"西2"},"131":{"row":2,"col":3,"rowName":"北3","colName":"西2"},"132":{"row":2,"col":4,"rowName":"北3","colName":"西1"},"133":{"row":2,"col":5,"rowName":"北3","colName":"中轴"},"134":{"row":2,"col":6,"rowName":"北3","colName":"东1"},"135":{"row":2,"col":7,"rowName":"北3","colName":"东2"},"136":{"row":2,"col":8,"rowName":"北3","colName":"东3"},"138":{"row":3,"col":8,"rowName":"北2","colName":"东3"},"139":{"row":4,"col":2,"rowName":"北1","colName":"西3"},"140":{"row":4,"col":8,"rowName":"北1","colName":"东3"},"141":{"row":5,"col":2,"rowName":"中轴","colName":"西3"},"150":{"row":1,"col":3,"rowName":"北4","colName":"西2"},"151":{"row":1,"col":4,"rowName":"北4","colName":"西1"},"152":{"row":1,"col":5,"rowName":"北4","colName":"中轴"},"153":{"row":1,"col":6,"rowName":"北4","colName":"东1"},"154":{"row":1,"col":7,"rowName":"北4","colName":"东2"},"155":{"row":1,"col":8,"rowName":"北4","colName":"东3"},"156":{"row":4,"col":1,"rowName":"北1","colName":"西4"},"157":{"row":4,"col":9,"rowName":"北1","colName":"东4"},"160":{"row":0,"col":5,"rowName":"北5","colName":"中轴"},"161":{"row":0,"col":7,"rowName":"北5","colName":"东2"},"162":{"row":7,"col":9,"rowName":"南2","colName":"东4"},"180":{"row":1,"col":2,"rowName":"北4","colName":"西3"},"185":{"row":3,"col":1,"rowName":"北2","colName":"西4"},"190":{"row":3,"col":9,"rowName":"北2","colName":"东4"},"199":{"row":2,"col":2,"rowName":"北3","colName":"西3"}};
+var NAMES = {"101":"昆纳赫特村","102":"猎人森林","103":"武者集会","104":"礼堂废墟","105":"荒剑冢","106":"先民坟山","107":"白化村","108":"蛆林","109":"避难岛","110":"闹鬼的蛆林","111":"高墙之下","112":"染血峡谷","113":"镜湖","114":"盘根树林","115":"巨人阶梯","116":"远郡","117":"第一村","118":"奔涌平原","119":"舰队残骸","120":"南之角","121":"残败的昆纳赫特","122":"干涩的湖泊","123":"沉没的坟山","125":"巨人阶梯(寺庙被毁)","126":"倒塌的巨石","131":"木墙城","132":"宁静之脸","133":"月环阵","134":"法福瑞","135":"邦多卡","136":"库瓦赫石塔","137":"被征服的木墙城","138":"瘟疫街区","139":"大灾变","140":"黑暗沼泽","141":"冥尘边界","142":"安静的街区","147":"被遗弃的法福瑞","148":"法多卡","149":"残破的石塔","150":"守卫之谷","151":"高丘","152":"半路村","153":"蕨海","154":"骑士团之墓","155":"低语森林","156":"大瀑布","157":"闪烁平原","158":"谈判会场","160":"鸦巢城","161":"远望角","162":"戈比尼克","165":"鸦巢废墟","170":"远望角避难所","180":"欧林的哨站","185":"图瓦坦之心","190":"卡梅洛","195":"被包围的卡梅洛","199":"图瓦坦"};
+var TOTAL = 0; for (var k in C) TOTAL++;
+/* 系统坐标 → 地点反查表 */
+var AT = {}; for (var id2 in C) AT[C[id2].row + ',' + C[id2].col] = id2;
 
-let curLoc=101;
-let revealed=new Set([101,102,103,104,105]);
-let menhirs=new Set([101]);
-let replaced={};
+/* ── 替换地点表（游戏数据：主线地点被剧情替换后共用格子） ──
+   替换版 → 原版；显示规则：探索记录含替换版则显示替换版，否则原版 */
+var REPLACE = {"121":"101","123":"106","110":"108","122":"113","125":"115","126":"116","137":"131","147":"134","148":"135","149":"136","142":"138","158":"152","165":"160","170":"161","195":"190"};
+var BASE2REP = {}; for (var rk in REPLACE) BASE2REP[REPLACE[rk]] = rk;
+/* 地点 → 所在格子坐标（替换版继承原版格子） */
+function cellOf(id){ return C[id] || C[REPLACE[id]] || null; }
+/* 地点 → 原版编号（替换版映射回原版，非替换地点返回自身） */
+function baseOf(id){ return REPLACE[id] || id; }
+/* 格子是否已探索：原版或替换版任一在探索记录中 */
+function cellExplored(baseId, exp){ return !!exp[baseId] || !!(BASE2REP[baseId] && exp[BASE2REP[baseId]]); }
+/* 格子的当前显示版本：替换版已探索 → 替换版；否则原版 */
+function dispId(baseId, exp){ var rep = BASE2REP[baseId];
+    if(rep && exp[rep]) return rep; return baseId; }
+/* 图瓦坦：共用卡背(正) / 每牌独立街景(反)；batch 恒为 7 */
+function tuvPhoto(card, m){ return PH + '/' + (m==='street'?'反':'正') + '7_199-' + card + '.png'; }
+function tuvCard(p){ return p.tuathan.length ? p.tuathan[p.tuathan.length-1] : 1; } // 当前牌=最后揭示
 
-function isVis(loc){
-  if(SPECIAL.includes(loc))return false;
-  if(loc===curLoc)return true;
-  const adj=getAdjs(curLoc);
-  if(adj.has(loc)&&revealed.has(loc))return true;
-  const cov=new Set(menhirs);
-  for(const m of menhirs){const nb=CONNS[m]||[];for(const n of nb)cov.add(parseInt(n));}
-  if(cov.has(loc)&&revealed.has(loc))return true;
-  if(revealed.has(loc))return true;
-  return false;
+/* 手绘地图覆盖：行 1~6（北4~南1）、列 3~8（西2~东3） */
+function inSketch(r, c){ return r>=1 && r<=6 && c>=3 && c<=8; }
+/* 以当前地点为中心的 3×3 范围（鸟瞰模式高清视窗） */
+function inNine(r, c, ct){ return r>=ct.row-1 && r<=ct.row+1 && c>=ct.col-1 && c<=ct.col+1; }
+
+var GW = 1800, GH = 2136;
+
+/* ── 状态 ── */
+var mode = 'street';   // aerial 鸟瞰(正) | street 街景(反) | map 地图(手绘)
+var fs = false;
+var tf = {x:0, y:0, s:1};
+var MIN_S = 0.35, MAX_S = 5;
+
+/* ── 本地偏好（模式/视图 + 图例面板位置） ── */
+var STORE_KEY = 'jll.map.ui';
+function saveUI(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify({mode:mode})); }catch(e){} }
+function loadUI(){ try{ var r = localStorage.getItem(STORE_KEY); if(!r) return; var o = JSON.parse(r);
+    if(o.mode==='aerial'||o.mode==='street'||o.mode==='map') mode = o.mode; }catch(e){} }
+var LG_KEY = 'jll.map.legend';
+function saveLG(x, y){ try{ localStorage.setItem(LG_KEY, JSON.stringify({x:x, y:y})); }catch(e){} }
+function loadLG(){ try{ var r = localStorage.getItem(LG_KEY); if(!r) return null; var o = JSON.parse(r);
+    if(typeof o.x==='number' && typeof o.y==='number') return o; }catch(e){} return null; }
+
+/* ── 图片寻址 ── */
+function batch(n){ // 与 cropped/ 实际文件一致：每批约 9-10 张，按编号排序
+    n = parseInt(n,10);
+    if(n<=109) return '1';
+    if(n<=118) return '2';
+    if(n<=126 || n<=132) return '3';   // 119-126, 131, 132
+    if(n<=141) return '4';             // 133-141
+    if(n<=154) return '5';             // 142, 147-154
+    if(n<=170) return '6';             // 155-158, 160-162, 165, 170
+    return '7';                        // 180, 185, 190, 195, 199
 }
+function photo(id, m){ return PH + '/' + (m==='street'?'反':'正') + batch(id) + '_' + id + '.png'; }
+function lbPhoto(id){ // 灯箱跟随模式；图瓦坦用当前牌对应卡面
+    if(id === '199') return tuvPhoto(tuvCard(prs()), mode==='street' ? 'street' : 'aerial');
+    return photo(id, mode==='street' ? 'street' : 'aerial'); }
 
-function renderMain(){
-  let h='<tr><th></th>';
-  COLS.forEach(function(c){h+='<th>'+c+'</th>';});
-  h+='</tr>';
-  const cov=new Set(menhirs);
-  for(const m of menhirs){const nb=CONNS[m]||[];for(const n of nb)cov.add(parseInt(n));}
-  
-  for(let r=0;r<GRID.length;r++){
-    h+='<tr><th class="rl">'+ROWS[r]+'</th>';
-    for(let c=0;c<GRID[r].length;c++){
-      const cell=GRID[r][c];
-      if(cell===0){h+='<td class="fg"></td>';continue}
-      if(cell===-1){h+='<td class="bl"></td>';continue}
-      const isCur=cell===curLoc;
-      const isRev=revealed.has(cell);
-      const vis=isVis(cell);
-      const effNum=(isRev&&replaced[cell])?replaced[cell]:cell;
-      const inf=INFO[effNum]||INFO[cell]||{n:'?',d:''};
-      let cls='card';
-      if(isCur)cls+=' cur';else if(isRev&&vis)cls+=' rev';else if(!vis)cls+=' fog';
-      h+='<td><div class="'+cls+'" onclick="sh('+cell+')">';
-      h+='<div class="im"><img src="'+imgUrl(effNum)+'" loading="lazy" onerror="this.style.display=\'none\'"><span class="ph" style="display:none">📜</span></div>';
-      h+='<div class="num">'+effNum+'</div>';
-      h+='<div class="nm" title="'+inf.n+'">'+inf.n+'</div>';
-      if(inf.r&&isRev&&replaced[cell]!==inf.r)h+='<div class="rp">↳'+inf.r+'</div>';
-      h+='</div></td>';
+/* ── URL 参数（白名单过滤；loc/explored 接受原版与替换版编号） ── */
+function prs(){
+    var loc = '101', ex = [], pillar = null, tuathan = [];
+    try{
+        var p = new URLSearchParams(window.location.search);
+        var l = p.get('loc'); if(l && cellOf(l)) loc = l;
+        var e = p.get('explored');
+        if(e) ex = e.split(',').filter(function(id){ return /^\d{3}$/.test(id) && cellOf(id); });
+        var pl = parseInt(p.get('pillar'),10);
+        if(!isNaN(pl) && pl>=0 && pl<=99) pillar = pl;
+        var t = p.get('tuathan');   // 图瓦坦已揭示牌，如 tuathan=1,3
+        if(t) tuathan = t.split(',').filter(function(n){ return /^[1-5]$/.test(n); }).map(Number);
+    }catch(e){}
+    return {loc:loc, explored:ex, pillar:pillar, tuathan:tuathan};
+}
+function expMap(p){ var m = {}; p.explored.forEach(function(id){ m[id]=true; }); m[p.loc]=true; return m; }
+/* 带图片回退的 img：替换版照片缺失时回退原版，再缺则移除 */
+function mkPhoto(id, mode, cls){ var img = mkImg(photo(id, mode), cls);
+    var base = REPLACE[id];
+    if(base){ img.onerror = function(){ this.onerror = function(){ this.remove(); }; this.src = photo(base, mode); }; }
+    return img; }
+/* 图瓦坦格子的牌组指示：5 个牌位，已揭示点亮 */
+function deckWidget(revealed){
+    var d = document.createElement('div'); d.className = 'tuv-deck';
+    for(var i=1; i<=5; i++){
+        var s = document.createElement('span');
+        s.className = 'tuv-card' + (revealed.indexOf(i) >= 0 ? ' on' : '');
+        s.textContent = i;
+        d.appendChild(s);
     }
-    h+='</tr>';
-  }
-  document.getElementById('grid').innerHTML=h;
-  updInfo();
+    return d;
 }
 
-function renderSpecial(){
-  let h='';
-  h+='<div style="grid-column:1/-1;font-size:13px;color:var(--gold);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:6px">🏛 图瓦坦 (199) · 先民故都</div>';
-  h+='<div class="sub-grid" style="grid-column:1/-1">';
-  for(let i=1;i<=5;i++){
-    const isR=revealed.has(199);
-    h+='<div class="sb'+(isR?'':' fog')+'" onclick="sh(199)"><div class="si2"><img src="'+CDN+'/正7_199-'+i+'.png" loading="lazy"></div><div class="sl">区域 '+i+'</div></div>';
-  }
-  h+='</div>';
-  
-  for(const loc of [185,162]){
-    const inf=INFO[loc]||{};
-    const isR=revealed.has(loc);
-    h+='<div style="grid-column:1/-1;font-size:12px;color:var(--gold);padding:10px 0 3px;border-bottom:1px solid var(--border);margin:6px 0">🏛 '+inf.n+' ('+loc+')</div>';
-    h+='<div class="sc'+(isR?'':' fog')+'" onclick="sh('+loc+')"><div class="si"><img src="'+imgUrl(loc)+'" loading="lazy"></div><div class="sf"><div class="sn">'+inf.n+'</div><div class="su">地点 '+loc+'</div><div class="sd">'+(inf.d||'')+'</div></div></div>';
-  }
-  document.getElementById('special-panel').innerHTML=h;
+/* ── 工具 ── */
+function $(id){ return document.getElementById(id); }
+function mkImg(src, cls){ var img = document.createElement('img');
+    img.src = src; img.loading = 'lazy'; img.draggable = false;
+    if(cls) img.className = cls;
+    img.onerror = function(){ this.remove(); };
+    return img; }
+
+/* ── 变换 ── */
+function atf(){ $('stage').style.transform = 'translate(' + tf.x + 'px,' + tf.y + 'px) scale(' + tf.s + ')'; }
+function clampXY(){
+    var bv = $('bv'), vw = bv.clientWidth, vh = bv.clientHeight;
+    var w = GW*tf.s, h = GH*tf.s;
+    if (tf.x > vw*0.85) tf.x = vw*0.85;
+    if (tf.x + w < vw*0.15) tf.x = vw*0.15 - w;
+    if (tf.y > vh*0.85) tf.y = vh*0.85;
+    if (tf.y + h < vh*0.15) tf.y = vh*0.15 - h;
+}
+function zoomAt(cx, cy, factor){
+    var ns = Math.max(MIN_S, Math.min(MAX_S, tf.s*factor));
+    if (ns === tf.s) return;
+    var mx = (cx - tf.x)/tf.s, my = (cy - tf.y)/tf.s;
+    tf.s = ns; tf.x = cx - mx*ns; tf.y = cy - my*ns;
+    clampXY(); atf();
+}
+function centerOn(id, scale){
+    var ct = cellOf(id); if(!ct) return;
+    var bv = $('bv'), vw = bv.clientWidth, vh = bv.clientHeight;
+    if(vw<=0||vh<=0){ setTimeout(function(){ centerOn(id, scale); }, 60); return; }
+    tf.s = scale || 1;
+    tf.x = vw/2 - (ct.col+0.5)*(GW/10)*tf.s;
+    tf.y = vh/2 - (ct.row+0.5)*(GH/8)*tf.s;
+    atf();
 }
 
-function sh(loc){
-  const inf=INFO[loc]||{n:'未知',d:''};
-  document.getElementById('mi').innerHTML='<img src="'+imgUrl(loc)+'" onerror="this.parentElement.innerHTML=\'<div style=padding:30px;text-align:center;color:var(--dim)>插图加载中…</div>\'">';
-  document.getElementById('mt').textContent=inf.n;
-  document.getElementById('mn').textContent='地点 '+loc+(inf.r?' → 可替换为 '+inf.r:'');
-  document.getElementById('md').textContent=inf.d||'';
-  const adjs=getAdjs(loc);
-  document.getElementById('mc').textContent='邻接：'+Array.from(adjs).map(function(a){return a+' '+(INFO[a]||{}).n||'';}).join(' · ');
-  document.getElementById('modal').classList.add('on');
-}
-function cls(){document.getElementById('modal').classList.remove('on');}
+/* ══════════════ 8×10 全图 ══════════════
+   鸟瞰：压缩拼接小图垫底 + 3×3 高清视窗（原始大图）+ 磨砂遮蔽
+   地图：手绘原图垫底（不压缩）+ 苔痕/半遮蔽
+   替换地点：探索记录含替换版则显示替换版（照片缺失回退原版）
+   图瓦坦：199 格带牌组指示，共用卡背/独立街景
+══════════════════════════════ */
+function buildBig(){
+    var stage = $('stage'); stage.innerHTML = '';
+    var p = prs(), exp = expMap(p), curCt = cellOf(p.loc);
 
-document.querySelectorAll('.tb').forEach(function(t){t.addEventListener('click',function(){
-  document.querySelectorAll('.tb').forEach(function(x){x.classList.remove('on');});
-  document.querySelectorAll('.pnl').forEach(function(x){x.classList.remove('on');});
-  this.classList.add('on');
-  document.getElementById('p-'+this.dataset.tab).classList.add('on');
-  if(this.dataset.tab==='special')renderSpecial();
-});});
-
-async function loadMVU(){
-  try{
-    if(window.parent&&window.parent.TavernHelper){
-      const v=await window.parent.TavernHelper.getVariables({type:'message'});
-      if(v&&v.stat_data){
-        const d=v.stat_data['加洛琳'];
-        if(d){
-          if(d['位置与时间']&&d['位置与时间']['当前地点'])curLoc=d['位置与时间']['当前地点'];
-          if(d['剧情']&&d['剧情']['状态标记']){
-            d['剧情']['状态标记'].forEach(function(m){
-              var s=String(m);
-              var em=s.match(/已探索(d+)/);if(em)revealed.add(parseInt(em[1]));
-              var mm=s.match(/巨神柱(d+)/);if(mm)menhirs.add(parseInt(mm[1]));
-            });
-          }
+    if(mode === 'aerial'){
+        stage.appendChild(mkImg(BASE_AERIAL, 'base base-aerial'));
+        var cells = document.createElement('div'); cells.className = 'cells';
+        for(var r=0; r<8; r++) for(var c=0; c<10; c++){
+            var cell = document.createElement('div'); cell.className = 'cell';
+            var lid = AT[r + ',' + c];
+            var isCur = !!(curCt && curCt.row===r && curCt.col===c);
+            // 3×3 视窗内且已探索 → 原始大图；其余磨砂
+            var hiRes = lid && curCt && inNine(r, c, curCt) && (cellExplored(lid, exp) || isCur);
+            if(hiRes){
+                var showId = isCur ? p.loc : dispId(lid, exp);
+                cell.classList.add('explored');
+                cell.appendChild(lid==='199' ? mkImg(tuvPhoto(tuvCard(p), 'aerial'), 'ph')
+                                             : mkPhoto(showId, 'aerial', 'ph'));
+                (function(l){ cell.addEventListener('click', function(){ if(!dragMoved) showFull(l); }); })(showId);
+            }else{
+                var f = document.createElement('div'); f.className = 'frost';
+                cell.appendChild(f);
+            }
+            if(lid === '199') cell.appendChild(deckWidget(p.tuathan));
+            if(isCur){
+                var hl = document.createElement('div'); hl.className = 'hl';
+                var dot = document.createElement('div'); dot.className = 'dot';
+                hl.appendChild(dot); cell.appendChild(hl);
+            }
+            cells.appendChild(cell);
         }
-      }
+        stage.appendChild(cells);
+    }else{
+        // 地图：核心区内无地点格（右下角三格等）恒为暗色
+        stage.appendChild(mkImg(SKETCH, 'base base-sketch'));
+        var cells2 = document.createElement('div'); cells2.className = 'cells';
+        for(var r2=0; r2<8; r2++) for(var c2=0; c2<10; c2++){
+            var cell2 = document.createElement('div'); cell2.className = 'cell';
+            var lid2 = AT[r2 + ',' + c2];
+            if(lid2){
+                var isCur2 = !!(curCt && curCt.row===r2 && curCt.col===c2);
+                var shown2 = cellExplored(lid2, exp) || isCur2;
+                var mk2 = document.createElement('div');
+                mk2.className = shown2 ? 'moss-mark' : 'veil';
+                cell2.appendChild(mk2);
+                if(shown2){
+                    cell2.classList.add('explored');
+                    var sid = isCur2 ? p.loc : dispId(lid2, exp);
+                    (function(l){ cell2.addEventListener('click', function(){ if(!dragMoved) showFull(l); }); })(sid);
+                }
+                if(lid2 === '199') cell2.appendChild(deckWidget(p.tuathan));
+                if(isCur2){
+                    var hl2 = document.createElement('div'); hl2.className = 'hl';
+                    var dot2 = document.createElement('div'); dot2.className = 'dot';
+                    hl2.appendChild(dot2); cell2.appendChild(hl2);
+                }
+            }else if(inSketch(r2, c2)){
+                var dk = document.createElement('div'); dk.className = 'veil';
+                cell2.appendChild(dk);
+            }
+            cells2.appendChild(cell2);
+        }
+        stage.appendChild(cells2);
     }
-  }catch(e){}
-  renderMain();
+
+    centerOn(p.loc, fs ? 1.3 : 1);
+    updateInfo(p); updateStat(p);
 }
 
-function updInfo(){
-  var v=0;
-  for(var n in INFO)if(revealed.has(parseInt(n)))v++;
-  document.getElementById('info').textContent='地点 '+v+'/60 已揭示 · 当前位置：'+(INFO[curLoc]||{}).n||'?';
+/* 街景：普通地点显示当前街景大图；图瓦坦并列五牌（已解锁去磨砂） */
+function buildStreet(){
+    var p = prs(), ct = cellOf(p.loc);
+    var img = $('svImg'), row = $('svRow');
+    if(p.loc === '199'){
+        img.style.display = 'none';
+        row.style.display = 'flex';
+        buildTuvRow(p);
+        var extra = [];
+        if(expMap(p)['180']) extra.push('哨站');
+        if(expMap(p)['185']) extra.push('之心');
+        $('svCap').innerHTML = '<b>图瓦坦</b> · 已揭示 ' + p.tuathan.length + '/5' + (extra.length ? ' · 常驻：' + extra.join('、') : '');
+    }else{
+        row.style.display = 'none';
+        img.style.display = '';
+        img.onerror = function(){ var b = REPLACE[p.loc];
+            if(b){ img.onerror = null; img.src = photo(b, 'street'); } };
+        img.src = photo(p.loc, 'street');
+        $('svCap').innerHTML = '当前所在 · <b>' + (NAMES[p.loc]||p.loc) + '</b>' + (ct ? ' · ' + ct.rowName + '·' + ct.colName : '');
+    }
+    updateInfo(p); updateStat(p);
+}
+/* 图瓦坦五牌并列：揭示牌亮出独立街景，未揭示磨砂；180/185 常驻牌追加 */
+function buildTuvRow(p){
+    var row = $('svRow'); row.innerHTML = '';
+    var cur = tuvCard(p), exp = expMap(p);
+    for(var i=1; i<=5; i++){
+        var rev = p.tuathan.indexOf(i) >= 0;
+        var card = document.createElement('div');
+        card.className = 'tuv-slot' + (rev ? ' rev' : '') + (rev && i===cur ? ' cur' : '');
+        card.appendChild(mkImg(tuvPhoto(i, 'street')));
+        if(!rev){ var fr = document.createElement('div'); fr.className = 'frost'; card.appendChild(fr); }
+        else{
+            var tag = document.createElement('span'); tag.className = 'slot-tag'; tag.textContent = '图瓦坦-' + i;
+            card.appendChild(tag);
+            (function(n){ card.addEventListener('click', function(e){ e.stopPropagation(); showTuv(n); }); })(i);
+        }
+        row.appendChild(card);
+    }
+    // 常驻特殊牌：180 欧林的哨站 / 185 图瓦坦之心（已揭示才入列，规则：不收走）
+    [['180','欧林哨站'],['185','图瓦坦之心']].forEach(function(cfg){
+        var sid = cfg[0];
+        if(!exp[sid]) return;
+        var card = document.createElement('div');
+        card.className = 'tuv-slot rev' + (p.loc===sid ? ' cur' : '');
+        card.appendChild(mkPhoto(sid, 'street'));
+        var tag = document.createElement('span'); tag.className = 'slot-tag'; tag.textContent = cfg[1];
+        card.appendChild(tag);
+        card.addEventListener('click', function(e){ e.stopPropagation(); showFull(sid); });
+        row.appendChild(card);
+    });
+}
+/* 灯箱看图瓦坦某张已揭示牌的街景 */
+function showTuv(n){
+    $('lbImg').src = tuvPhoto(n, 'street');
+    $('lbCap').innerHTML = '<b>图瓦坦-' + n + '</b> · 199 · 街景';
+    lbFit(CARD_AR);
+    $('lb').classList.add('on');
+    lbReset();
 }
 
-loadMVU();
-document.addEventListener('keydown',function(e){if(e.key==='Escape')cls();});
-document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)cls();});
+/* ── 信息区与主题 ── */
+function updateInfo(p){
+    var ct = cellOf(p.loc);
+    $('locInfo').innerHTML = ct
+        ? '<b>' + (NAMES[p.loc]||p.loc) + '</b>' + ct.rowName + ' · ' + ct.colName
+        : '<b>' + (NAMES[p.loc]||p.loc) + '</b>';
+    var pw = $('pillar'), shell = $('shell');
+    shell.classList.remove('th-warn','th-danger');
+    // 图瓦坦区域内无巨神柱（199/180/185 均属图瓦坦深处）
+    if(p.pillar === null || p.loc==='199' || p.loc==='180' || p.loc==='185'){ pw.style.display = 'none'; return; }
+    pw.style.display = '';
+    if(p.pillar <= 2) shell.classList.add('th-danger');
+    else if(p.pillar <= 4) shell.classList.add('th-warn');
+    var lit = Math.max(0, Math.min(8, p.pillar));
+    var flames = pw.querySelectorAll('.flame');
+    for(var i=0; i<flames.length; i++) flames[i].classList.toggle('lit', i < lit);
+    $('pillarDays').textContent = p.pillar + '天';
+}
+function updateStat(p){
+    // 按格子计数：原版与替换版归为同一格
+    var cells = {};
+    p.explored.forEach(function(id){ var b = baseOf(id); if(C[b]) cells[b] = 1; });
+    var lb = baseOf(p.loc); if(C[lb]) cells[lb] = 1;
+    var n = Object.keys(cells).length;
+    $('expStat').textContent = '已探索 ' + Math.min(n, TOTAL) + '/' + TOTAL;
+}
+
+/* ── 渲染调度 ── */
+function ren(){
+    var street = (mode === 'street');
+    $('bv').style.display = street ? 'none' : '';
+    $('sv').style.display = street ? 'flex' : 'none';
+    $('bZo').disabled = $('bZi').disabled = $('bHome').disabled = street;
+    if(street) buildStreet(); else buildBig();
+}
+function setMode(m){ mode = m;
+    $('bA').classList.toggle('on', m==='aerial');
+    $('bS').classList.toggle('on', m==='street');
+    $('bM').classList.toggle('on', m==='map');
+    saveUI(); ren(); }
+
+/* ── 灯箱（原图 + 缩放拖拽；全岛带迷雾磨砂遮罩） ── */
+var lbTf = {x:0, y:0, s:1};
+function lbApply(){ $('lbStage').style.transform = 'translate(' + lbTf.x + 'px,' + lbTf.y + 'px) scale(' + lbTf.s + ')'; }
+function lbReset(){ lbTf = {x:0, y:0, s:1}; lbApply(); }
+function lbFit(ar){ // 按图片宽高比计算舞台尺寸
+    var maxW = window.innerWidth*0.94, maxH = window.innerHeight*0.86;
+    var w = maxW, h = w/ar;
+    if(h > maxH){ h = maxH; w = h*ar; }
+    var st = $('lbStage');
+    st.style.width = w + 'px'; st.style.height = h + 'px';
+}
+function showFull(id){
+    $('lbImg').src = lbPhoto(id);
+    var ct = C[id];
+    $('lbCap').innerHTML = '<b>' + (NAMES[id]||id) + '</b> · ' + id + (ct ? ' · ' + ct.rowName + '·' + ct.colName : '');
+    lbFit(CARD_AR);
+    $('lb').classList.add('on');
+    lbReset();
+}
+function closeLb(){ $('lb').classList.remove('on'); }
+function bindLightbox(){
+    var lb = $('lb'), st = $('lbStage');
+    var dragging = false, sx = 0, sy = 0, ox = 0, oy = 0, moved = false;
+    st.addEventListener('pointerdown', function(e){
+        dragging = true; moved = false; sx = e.clientX; sy = e.clientY; ox = lbTf.x; oy = lbTf.y;
+        lb.classList.add('dragging'); e.preventDefault(); e.stopPropagation();
+    });
+    window.addEventListener('pointermove', function(e){
+        if(!dragging) return;
+        var dx = e.clientX - sx, dy = e.clientY - sy;
+        if(Math.abs(dx)>4 || Math.abs(dy)>4) moved = true;
+        lbTf.x = ox + dx; lbTf.y = oy + dy;
+        lbApply();
+    });
+    window.addEventListener('pointerup', function(){ dragging = false; lb.classList.remove('dragging'); });
+    lb.addEventListener('wheel', function(e){
+        e.preventDefault();
+        var rect = st.getBoundingClientRect();
+        var cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+        var ns = Math.max(0.5, Math.min(6, lbTf.s * (e.deltaY > 0 ? 0.85 : 1.18)));
+        var rx = cx / lbTf.s, ry = cy / lbTf.s;
+        lbTf.x -= rx * (ns - lbTf.s); lbTf.y -= ry * (ns - lbTf.s);
+        lbTf.s = ns; lbApply();
+    }, {passive:false});
+    st.addEventListener('dblclick', function(e){ lbReset(); e.stopPropagation(); });
+    $('lbX').addEventListener('click', closeLb);
+    lb.addEventListener('click', function(e){ if(e.target === this) closeLb(); });
+}
+
+/* ── 悬浮图例面板拖动 ── */
+function bindLegend(){
+    var panel = $('lgPanel'), ct = $('ct');
+    var saved = loadLG();
+    if(saved){ panel.style.left = saved.x + 'px'; panel.style.top = saved.y + 'px'; panel.style.bottom = 'auto'; }
+    var dragging = false, sx = 0, sy = 0, ox = 0, oy = 0;
+    panel.addEventListener('pointerdown', function(e){
+        dragging = true; sx = e.clientX; sy = e.clientY;
+        ox = panel.offsetLeft; oy = panel.offsetTop;
+        panel.style.bottom = 'auto';
+        panel.classList.add('dragging');
+        e.preventDefault(); e.stopPropagation();
+    });
+    window.addEventListener('pointermove', function(e){
+        if(!dragging) return;
+        var nx = ox + (e.clientX - sx), ny = oy + (e.clientY - sy);
+        // 限制在地图区内
+        nx = Math.max(0, Math.min(ct.clientWidth - panel.offsetWidth, nx));
+        ny = Math.max(0, Math.min(ct.clientHeight - panel.offsetHeight, ny));
+        panel.style.left = nx + 'px'; panel.style.top = ny + 'px';
+    });
+    window.addEventListener('pointerup', function(){
+        if(!dragging) return;
+        dragging = false; panel.classList.remove('dragging');
+        saveLG(panel.offsetLeft, panel.offsetTop);
+    });
+}
+
+/* ── 地图拖拽 / 捏合（不用 setPointerCapture，防 click 被重定向） ── */
+var dragMoved = false;
+var pts = {};
+var dragBase = null, pinchBase = null;
+
+function ptDist(){ var ks = Object.keys(pts); if(ks.length<2) return 0;
+    var a = pts[ks[0]], b = pts[ks[1]];
+    return Math.sqrt((a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y)); }
+function ptMid(bv){ var ks = Object.keys(pts); var x=0, y=0;
+    ks.forEach(function(k){ x += pts[k].x; y += pts[k].y; });
+    var rect = bv.getBoundingClientRect();
+    return { x: x/ks.length - rect.left, y: y/ks.length - rect.top }; }
+
+function bindPan(){
+    var bv = $('bv');
+    bv.addEventListener('pointerdown', function(e){
+        pts[e.pointerId] = {x:e.clientX, y:e.clientY};
+        dragMoved = false;
+        if(Object.keys(pts).length === 1){
+            dragBase = {x:e.clientX, y:e.clientY, ox:tf.x, oy:tf.y};
+            pinchBase = null;
+            bv.classList.add('drag');
+        }else if(Object.keys(pts).length === 2){
+            dragBase = null;
+            var mid = ptMid(bv);
+            pinchBase = { dist: ptDist(), s: tf.s,
+                mx: (mid.x - tf.x)/tf.s, my: (mid.y - tf.y)/tf.s };
+        }
+        e.preventDefault();
+    });
+    window.addEventListener('pointermove', function(e){
+        if(!(e.pointerId in pts)) return;
+        pts[e.pointerId] = {x:e.clientX, y:e.clientY};
+        var n = Object.keys(pts).length;
+        if(n === 1 && dragBase){
+            var dx = e.clientX - dragBase.x, dy = e.clientY - dragBase.y;
+            if(Math.abs(dx)>4 || Math.abs(dy)>4) dragMoved = true;
+            tf.x = dragBase.ox + dx; tf.y = dragBase.oy + dy;
+            clampXY(); atf();
+        }else if(n === 2 && pinchBase){
+            dragMoved = true;
+            var d = ptDist(); if(d <= 0 || pinchBase.dist <= 0) return;
+            var mid = ptMid(bv);
+            var ns = Math.max(MIN_S, Math.min(MAX_S, pinchBase.s * d / pinchBase.dist));
+            tf.s = ns; tf.x = mid.x - pinchBase.mx*ns; tf.y = mid.y - pinchBase.my*ns;
+            clampXY(); atf();
+        }
+    });
+    function up(e){
+        if(!(e.pointerId in pts)) return;
+        delete pts[e.pointerId];
+        if(Object.keys(pts).length < 2) pinchBase = null;
+        if(Object.keys(pts).length === 0){ dragBase = null; $('bv').classList.remove('drag'); }
+        else if(Object.keys(pts).length === 1){
+            var k = Object.keys(pts)[0];
+            dragBase = {x:pts[k].x, y:pts[k].y, ox:tf.x, oy:tf.y};
+        }
+        setTimeout(function(){ dragMoved = false; }, 0);
+    }
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    $('bv').addEventListener('wheel', function(e){
+        e.preventDefault();
+        var rect = $('bv').getBoundingClientRect();
+        zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY > 0 ? 0.86 : 1.16);
+    }, {passive:false});
+}
+
+/* ── 控件绑定 ── */
+function bindUI(){
+    $('bA').addEventListener('click', function(){ setMode('aerial'); });
+    $('bS').addEventListener('click', function(){ setMode('street'); });
+    $('bM').addEventListener('click', function(){ setMode('map'); });
+    $('bZo').addEventListener('click', function(){ var bv = $('bv'); zoomAt(bv.clientWidth/2, bv.clientHeight/2, 0.8); });
+    $('bZi').addEventListener('click', function(){ var bv = $('bv'); zoomAt(bv.clientWidth/2, bv.clientHeight/2, 1.25); });
+    $('bHome').addEventListener('click', function(){ centerOn(prs().loc, 1); });
+    $('sv').addEventListener('click', function(){ showFull(prs().loc); });
+    $('bFS').addEventListener('click', function(){
+        fs = !fs;
+        $('shell').classList.toggle('fs', fs);
+        this.textContent = fs ? '退出' : '全屏';
+        setTimeout(function(){ if(mode!=='street') centerOn(prs().loc, fs ? 1.3 : 1); }, 60);
+    });
+    document.addEventListener('keydown', function(e){
+        if(e.key !== 'Escape') return;
+        if($('lb').classList.contains('on')){ closeLb(); return; }
+        if(fs) $('bFS').click();
+    });
+    window.addEventListener('resize', function(){
+        if(mode !== 'street') centerOn(prs().loc, tf.s);
+    });
+}
+
+/* ── 启动 ── */
+// 页面装饰底图（暗化遮罩保证可读性）
+document.body.style.backgroundImage = 'linear-gradient(rgba(11,8,6,.78),rgba(11,8,6,.88)), url("' + PAGE_BG + '")';
+loadUI();
+$('bA').classList.toggle('on', mode==='aerial');
+$('bS').classList.toggle('on', mode==='street');
+$('bM').classList.toggle('on', mode==='map');
+bindUI();
+bindPan();
+bindLightbox();
+bindLegend();
+ren();
+})();
 </script>
 </body>
 </html>
