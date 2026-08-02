@@ -307,9 +307,8 @@ body::before{
    ══════════════════════════════════════════════ */
 var IS_LOCAL = location.protocol === 'file:';
 var LOCAL_ROOT = 'file:///C:/迅雷下载/污痕圣杯 阿瓦隆的陨落 基础中文修复版 Tainted Grail Fall of Avalon/Mods/Images/地点卡插图';
-// 仓库 ~400MB 超 jsDelivr 缓存上限，cdn.jsdelivr.net 会 301 到 raw（被墙）；
-// testingcf（Cloudflare 节点）实测可正常回源，作为 CDN 主域
-var CDN_ROOT = 'https://testingcf.jsdelivr.net/gh/jalaka12/avalon-map@main/images';
+// GitHub Pages 自动返回正确 MIME type，raw/testingcf 都出 text/plain
+var CDN_ROOT = 'https://jalaka12.github.io/avalon-map/images';
 var PH = (IS_LOCAL ? LOCAL_ROOT + '/cropped' : CDN_ROOT + '/locations');
 var SKETCH = (IS_LOCAL ? LOCAL_ROOT + '/cropped' : CDN_ROOT) + '/6x6手绘地图.png'; // 手绘原图（低清源文件，永不压缩）
 var PAGE_BG = (IS_LOCAL ? LOCAL_ROOT + '/底图' : CDN_ROOT) + '/底图.jpg';   // 页面装饰底图（压缩版，暗遮罩下无损感）
