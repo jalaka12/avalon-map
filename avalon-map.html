@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>阿瓦隆地图 · 加洛琳</title>
+<style>
+:root {
+    --bg-map: #0d0a08;
+    --bg-panel: #1a1512;
+    --border: #3d332a;
+    --text-dim: #8a7d6d;
+    --text-main: #c4b5a0;
+    --text-bright: #e8dcc8;
+    --accent-gold: #b8860b;
+    --accent-blood: #8b2635;
+    --accent-rust: #a0522d;
+    --accent-current: #daa520;
+    --accent-revealed: #4a6741;
+    --accent-unrevealed: #3d332a;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+    background:var(--bg-map);
+    color:var(--text-main);
+    font-family:'Palatino Linotype',Georgia,serif;
+    font-size:13px;
+    overflow:hidden;
+    width:100vw;height:100vh;
+    touch-action:manipulation;
+    user-select:none;
+    -webkit-user-select:none;
+}
+
+#map-container{position:relative;width:100%;height:100%;overflow:hidden;cursor:grab}
+#map-container.dragging{cursor:grabbing}
+#map-canvas{position:absolute;transform-origin:0 0}
+#map-canvas.smooth{transition:transform .3s ease-out}
+
+.map-bg{
+    position:absolute;top:0;left:0;
+    width:2400px;height:1800px;
+    background:radial-gradient(ellipse at 50% 50%,#1a1512 0%,#0d0a08 70%),
+        repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(61,51,42,.05) 40px,rgba(61,51,42,.05) 41px);
+    pointer-events:none;
+}
+
+.map-connections{position:absolute;top:0;left:0;width:2400px;height:1800px;pointer-events:none}
+.connection-line{stroke:rgba(61,51,42,.5);stroke-width:1.5;stroke-dasharray:6 4;fill:none}
+.connection-line.revealed{stroke:rgba(74,103,65,.4);stroke-dasharray:none}
+.connection-line.current{stroke:rgba(218,165,32,.6);stroke-width:2;stroke-dasharray:none;animation:pulse-line 2s infinite}
+@keyframes pulse-line{0%,100%{opacity:.4}50%{opacity:1}}
+
+/* 地点卡片 */
+.location-card{
+    position:absolute;width:200px;height:150px;
+    transform:translate(-100px,-75px);
+    cursor:pointer;perspective:800px;
+}
+.location-card-inner{
+    position:relative;width:100%;height:100%;
+    transition:transform .5s ease;transform-style:preserve-3d;
+}
+.location-card.flipped .location-card-inner{transform:rotateY(180deg)}
+
+.card-front,.card-back{
+    position:absolute;inset:0;backface-visibility:hidden;
+    border-radius:4px;overflow:hidden;
+}
+.card-front{
+    background:linear-gradient(180deg,#1e1a14,#15120d);
+    border:2px solid var(--accent-unrevealed);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+}
+.card-front.revealed{border-color:var(--accent-revealed);background:linear-gradient(180deg,#1e241a,#151810)}
+.card-front.current{border-color:var(--accent-current);background:linear-gradient(180deg,#241e14,#1a150d);box-shadow:0 0 20px rgba(218,165,32,.3)}
+.card-back{
+    background:linear-gradient(180deg,#1a1512,#241e18);
+    border:2px solid var(--accent-rust);
+    transform:rotateY(180deg);
+    padding:12px;display:flex;flex-direction:column;gap:4px;overflow-y:auto;
+}
+.card-img{
+    width:120px;height:75px;border-radius:2px;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;position:relative;
+}
+.card-img img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.card-img .placeholder{font-size:32px;opacity:.5}
+.card-number{font-family:Consolas,monospace;font-size:20px;font-weight:bold;color:var(--text-dim)}
+.revealed .card-number{color:var(--accent-revealed)}
+.current .card-number{color:var(--accent-gold)}
+.card-name{font-size:10px;color:var(--text-dim);text-align:center;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.revealed .card-name{color:var(--text-main)}
+.current .card-name{color:var(--text-bright)}
+.card-back .back-title{font-size:13px;font-weight:600;color:var(--accent-gold);border-bottom:1px solid var(--border);padding-bottom:6px}
+.card-back .back-desc{font-size:10px;color:var(--text-dim);line-height:1.5}
+.card-back .back-conn{font-size:9px;color:var(--accent-rust);margin-top:4px}
+
+.location-card.unrevealed{opacity:.4;filter:grayscale(.8) blur(1px);pointer-events:none}
+
+.current-pulse{
+    position:absolute;width:200px;height:150px;
+    transform:translate(-100px,-75px);
+    border-radius:8px;border:2px solid var(--accent-current);
+    animation:pulse-ring 2s infinite;pointer-events:none;z-index:-1;
+}
+@keyframes pulse-ring{
+    0%{box-shadow:0 0 0 0 rgba(218,165,32,.4)}
+    70%{box-shadow:0 0 0 20px rgba(218,165,32,0)}
+    100%{box-shadow:0 0 0 0 rgba(218,165,32,0)}
+}
+
+/* ═══ 顶部信息栏 ═══ */
+.top-bar{
+    position:fixed;top:0;left:0;right:0;
+    background:linear-gradient(180deg,rgba(13,10,8,.95),rgba(13,10,8,.7));
+    padding:10px 16px;display:flex;align-items:center;justify-content:space-between;
+    z-index:100;border-bottom:1px solid var(--border);
+}
+.top-title{font-size:16px;font-weight:600;color:var(--accent-gold);letter-spacing:1px}
+.top-info{font-size:11px;color:var(--text-dim)}
+
+/* ═══ 底部工具栏 ═══ */
+.bottom-bar{
+    position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+    display:flex;gap:8px;z-index:100;
+}
+.tool-btn{
+    background:rgba(26,21,18,.85);border:1px solid var(--border);
+    color:var(--text-dim);padding:8px 14px;border-radius:3px;
+    font-size:12px;cursor:pointer;font-family:inherit;
+    transition:all .2s;backdrop-filter:blur(4px);
+}
+.tool-btn:hover{background:rgba(36,30,24,.85);color:var(--text-main);border-color:var(--accent-gold)}
+.tool-btn.active{background:rgba(184,134,11,.15);color:var(--accent-gold);border-color:var(--accent-gold)}
+
+/* ═══ 弹窗 ═══ */
+.modal-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.7);
+    z-index:200;display:none;align-items:center;justify-content:center;
+}
+.modal-overlay.active{display:flex}
+.modal-box{
+    background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;
+    max-width:500px;width:90%;max-height:75vh;overflow-y:auto;
+    padding:20px;box-shadow:0 8px 40px rgba(0,0,0,.6);
+}
+.modal-box .m-img{width:100%;height:180px;border-radius:4px;margin-bottom:12px;overflow:hidden}
+.modal-box .m-img img{width:100%;height:100%;object-fit:cover}
+.modal-box .m-title{font-size:18px;color:var(--accent-gold);margin-bottom:4px}
+.modal-box .m-num{font-size:11px;color:var(--text-dim);font-family:monospace;margin-bottom:12px}
+.modal-box .m-desc{font-size:12px;color:var(--text-dim);line-height:1.6}
+.modal-box .m-conn{font-size:11px;color:var(--accent-rust);margin-top:8px}
+.modal-close{display:block;width:100%;margin-top:14px;padding:8px;background:var(--border);border:none;color:var(--text-main);border-radius:3px;cursor:pointer;font-family:inherit;font-size:13px}
+.modal-close:hover{background:var(--accent-rust)}
+.zoom-indicator{position:fixed;top:60px;right:16px;background:rgba(26,21,18,.85);border:1px solid var(--border);padding:4px 10px;border-radius:3px;font-size:11px;color:var(--text-dim);z-index:100;font-family:monospace}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+    <span class="top-title">🗺 阿瓦隆</span>
+    <span class="top-info" id="top-info">地点 0/63 已揭示 · 双击卡片翻面</span>
+</div>
+<div class="zoom-indicator" id="zoom-label">100%</div>
+
+<div id="map-container">
+    <div id="map-canvas">
+        <div class="map-bg"></div>
+        <svg class="map-connections" id="connections-svg"></svg>
+        <div id="locations-layer"></div>
+    </div>
+</div>
+
+<div class="bottom-bar">
+    <button class="tool-btn" id="btn-zoom-in">🔍+</button>
+    <button class="tool-btn" id="btn-zoom-out">🔍−</button>
+    <button class="tool-btn" id="btn-reset">📍 重置</button>
+    <button class="tool-btn" id="btn-current">🎯 当前位置</button>
+    <button class="tool-btn" id="btn-reveal-all">👁 全部揭示</button>
+</div>
+
+<div class="modal-overlay" id="modal">
+    <div class="modal-box">
+        <div class="m-img" id="modal-img"></div>
+        <div class="m-title" id="modal-title"></div>
+        <div class="m-num" id="modal-num"></div>
+        <div class="m-desc" id="modal-desc"></div>
+        <div class="m-conn" id="modal-conn"></div>
+        <button class="modal-close" id="modal-close-btn">关闭</button>
+    </div>
+</div>
+
+<script>
+const LOCATIONS = {
+  101:{name:"昆纳赫特村",x:780,y:460,desc:"围绕巨神像零散分布。远征队从此出发。",conn:[{"d":"北","l":102},{"d":"南","l":105},{"d":"东","l":104},{"d":"西","l":103}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正1_101.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反1_101.png"},
+  102:{name:"猎人森林",x:780,y:290,desc:"鹿老大头骨祭坛。德鲁伊禁域。",conn:[{"d":"北","l":113},{"d":"南","l":101},{"d":"东","l":107},{"d":"西","l":106}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正1_102.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反1_102.png"},
+  103:{name:"武者集会",x:550,y:460,desc:"沙地竞技场。帐篷与契约买家。",conn:[{"d":"西","l":118},{"d":"东","l":101},{"d":"南","l":108}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正1_103.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反1_103.png"},
+  104:{name:"礼堂废墟",x:990,y:600,desc:"被烧焦的德鲁伊尸骸。",conn:[{"d":"北","l":107},{"d":"南","l":109},{"d":"西","l":101}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正1_104.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反1_104.png"},
+  105:{name:"荒剑冢",x:780,y:630,desc:"巨人遗弃的巨剑。古钢大锤。",conn:[{"d":"西","l":108},{"d":"北","l":101}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正1_105.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反1_105.png"},
+  106:{name:"先民坟山",x:550,y:290,desc:"先民宝藏与冥尘雾气。金矿。",conn:[{"d":"北","l":112},{"d":"东","l":102},{"d":"西","l":116}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正1_106.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反1_106.png"},
+  107:{name:"白化村",x:1200,y:400,desc:"白色结晶苔藓。法埃尔旧居。",conn:[{"d":"北","l":114},{"d":"南","l":104},{"d":"西","l":102},{"d":"东","l":117}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正1_107.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反1_107.png"},
+  108:{name:"蛆林",x:550,y:630,desc:"蛆虫覆盖的扭曲森林。",conn:[{"d":"北","l":103},{"d":"西","l":120},{"d":"东","l":105}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正1_108.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反1_108.png"},
+  109:{name:"避难岛",x:990,y:770,desc:"赤死病隔离区。治愈仪式。",conn:[{"d":"北","l":104}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正1_109.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反1_109.png"},
+  110:{name:"闹鬼的蛆林",x:550,y:630,desc:"闹鬼森林。煮蛆而食。",conn:[{"d":"北","l":103},{"d":"西","l":105},{"d":"东","l":120}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正2_110.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反2_110.png"},
+  111:{name:"高墙之下",x:320,y:150,desc:"图瓦坦城墙。白骨墙缝。",conn:[{"d":"北","l":131},{"d":"西","l":112},{"d":"南","l":116}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正2_111.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反2_111.png"},
+  112:{name:"染血峡谷",x:550,y:80,desc:"三军古战场。血染之地。",conn:[{"d":"北","l":132},{"d":"西","l":111},{"d":"南","l":106}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正2_112.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反2_112.png"},
+  113:{name:"镜湖",x:780,y:120,desc:"天空之镜。湖中女神庇护所。",conn:[{"d":"东","l":114},{"d":"南","l":102}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正2_113.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反2_113.png"},
+  114:{name:"盘根树林",x:1010,y:120,desc:"古老树根迷宫。先民面具。",conn:[{"d":"东","l":115},{"d":"西","l":113},{"d":"南","l":107}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正2_114.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反2_114.png"},
+  115:{name:"巨人阶梯",x:1240,y:80,desc:"巨人阶梯。天母教寺庙。",conn:[{"d":"西","l":114},{"d":"东","l":138},{"d":"南","l":117}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正2_115.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反2_115.png"},
+  116:{name:"远郡",x:320,y:320,desc:"悬岩下最大农庄。琴凯德领地。",conn:[{"d":"北","l":111},{"d":"南","l":118},{"d":"东","l":106},{"d":"西","l":139}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正2_116.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反2_116.png"},
+  117:{name:"第一村",x:1440,y:320,desc:"人类首城延塔哲遗址。",conn:[{"d":"北","l":115},{"d":"南","l":119},{"d":"东","l":140},{"d":"西","l":107}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正2_117.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反2_117.png"},
+  118:{name:"奔涌平原",x:550,y:460,desc:"梅林开垦的圣地。难民避难所。",conn:[{"d":"北","l":116},{"d":"南","l":120},{"d":"东","l":103},{"d":"西","l":141}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正2_118.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反2_118.png"},
+  119:{name:"舰队残骸",x:1440,y:460,desc:"亚瑟沉船。远古魔法树冠。",conn:[{"d":"北","l":117}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正3_119.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反3_119.png"},
+  120:{name:"南之角",x:550,y:800,desc:"双子塔灯塔。兰马洛克隐居。",conn:[{"d":"北","l":118},{"d":"东","l":108}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正3_120.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反3_120.png"},
+  121:{name:"残败的昆纳赫特",x:780,y:460,desc:"冥尘之风后。",conn:[{"d":"北","l":102},{"d":"南","l":105},{"d":"东","l":104},{"d":"西","l":103}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正3_121.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反3_121.png"},
+  122:{name:"干涩的湖泊",x:780,y:120,desc:"镜湖干涸。冥石尖塔。",conn:[{"d":"东","l":114},{"d":"南","l":102}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正3_122.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反3_122.png"},
+  123:{name:"沉没的坟山",x:550,y:290,desc:"被冥尘淹没。",conn:[{"d":"北","l":112},{"d":"东","l":102},{"d":"西","l":116}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正3_123.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反3_123.png"},
+  125:{name:"巨人阶梯(废墟)",x:1240,y:80,desc:"寺庙被烧毁。黑烟。",conn:[{"d":"西","l":114},{"d":"东","l":138},{"d":"南","l":117}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正3_125.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反3_125.png"},
+  126:{name:"倒塌的巨石",x:320,y:320,desc:"悬岩坠落。",conn:[{"d":"北","l":111},{"d":"南","l":118},{"d":"东","l":106},{"d":"西","l":139}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正3_126.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反3_126.png"},
+  131:{name:"木墙城",x:200,y:50,desc:"背靠先民高墙。乌尔坦统治。",conn:[{"d":"南","l":111},{"d":"东","l":132}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正3_131.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反3_131.png"},
+  132:{name:"宁静之脸",x:430,y:-30,desc:"巨型雕像。眼部水池。",conn:[{"d":"北","l":151},{"d":"南","l":112},{"d":"东","l":133},{"d":"西","l":131}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正3_132.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反3_132.png"},
+  133:{name:"月环阵",x:660,y:-120,desc:"德鲁伊聚所。阿莫金领地。",conn:[{"d":"北","l":152},{"d":"东","l":134},{"d":"西","l":132}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正4_133.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反4_133.png"},
+  134:{name:"法福瑞",x:890,y:-120,desc:"混乱紧固的村庄。",conn:[{"d":"北","l":153},{"d":"东","l":135},{"d":"西","l":133}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正4_134.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反4_134.png"},
+  135:{name:"邦多卡",x:1120,y:-120,desc:"两座石山之间。隧道。",conn:[{"d":"北","l":154},{"d":"东","l":136},{"d":"西","l":134}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正4_135.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反4_135.png"},
+  136:{name:"库瓦赫石塔",x:1350,y:-40,desc:"囚禁远古威胁。",conn:[{"d":"北","l":155},{"d":"南","l":138},{"d":"西","l":135}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正4_136.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反4_136.png"},
+  137:{name:"被征服的木墙城",x:200,y:50,desc:"大门砸烂。房屋燃烧。",conn:[{"d":"东","l":132},{"d":"南","l":111}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正4_137.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反4_137.png"},
+  138:{name:"瘟疫街区",x:1350,y:150,desc:"瘟疫红旗。拥挤街区。",conn:[{"d":"北","l":136},{"d":"东","l":190},{"d":"西","l":115}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正4_138.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反4_138.png"},
+  139:{name:"大灾变",x:80,y:220,desc:"扭曲地形。天然冥石。",conn:[{"d":"东","l":116},{"d":"西","l":156}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正4_139.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反4_139.png"},
+  140:{name:"黑暗沼泽",x:1650,y:320,desc:"修道院遗址。沼妖出没。",conn:[{"d":"东","l":157},{"d":"西","l":117}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正4_140.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反4_140.png"},
+  141:{name:"冥尘边界",x:320,y:600,desc:"欧林的小屋。",conn:[{"d":"西","l":118}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正4_141.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反4_141.png"},
+  142:{name:"安静的街区",x:1350,y:150,desc:"争斗后异常宁静。",conn:[{"d":"北","l":136},{"d":"东","l":190},{"d":"西","l":115}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正5_142.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反5_142.png"},
+  147:{name:"被遗弃的法福瑞",x:890,y:-120,desc:"废弃村庄。噩梦背景。",conn:[{"d":"北","l":153},{"d":"东","l":133},{"d":"西","l":135}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正5_147.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反5_147.png"},
+  148:{name:"法多卡",x:1120,y:-120,desc:"人口过多。混乱坚强。",conn:[{"d":"北","l":154},{"d":"东","l":136},{"d":"西","l":134}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正5_148.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反5_148.png"},
+  149:{name:"残破的石塔",x:1350,y:-40,desc:"奥秘吞噬者。螺旋指环。",conn:[{"d":"北","l":155},{"d":"西","l":135},{"d":"南","l":138}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正5_149.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反5_149.png"},
+  150:{name:"守卫之谷",x:320,y:-120,desc:"通向图瓦坦唯一道路。白骨。",conn:[{"d":"东","l":151},{"d":"北","l":199}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正5_150.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反5_150.png"},
+  151:{name:"高丘",x:550,y:-220,desc:"阿格规文守望塔。",conn:[{"d":"西","l":150}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正5_151.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反5_151.png"},
+  152:{name:"半路村",x:780,y:-280,desc:"四条道路交汇。言和石。",conn:[{"d":"北","l":160},{"d":"南","l":133},{"d":"东","l":153}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正5_152.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反5_152.png"},
+  153:{name:"蕨海",x:1010,y:-280,desc:"蕨丛覆盖。先民面具洞窟。",conn:[{"d":"南","l":134},{"d":"西","l":152}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正5_153.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反5_153.png"},
+  154:{name:"骑士团之墓",x:1240,y:-280,desc:"亚瑟与骑士长眠。",conn:[{"d":"北","l":161},{"d":"南","l":135},{"d":"西","l":153}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正5_154.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反5_154.png"},
+  155:{name:"低语森林",x:1460,y:-200,desc:"迷雾。妮安特隐居。",conn:[{"d":"南","l":136},{"d":"西","l":154}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正6_155.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反6_155.png"},
+  156:{name:"大瀑布",x:0,y:150,desc:"崖壁三张人脸。水道入口。",conn:[{"d":"东","l":139}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正6_156.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反6_156.png"},
+  157:{name:"闪烁平原",x:1800,y:400,desc:"摩甘娜塔楼遗址。",conn:[{"d":"西","l":140}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正6_157.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反6_157.png"},
+  158:{name:"谈判会场",x:780,y:-280,desc:"各势力旗帜。",conn:[{"d":"北","l":160},{"d":"南","l":133},{"d":"东","l":153}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正6_158.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反6_158.png"},
+  160:{name:"鸦巢城",x:900,y:-380,desc:"莫瑞甘后裔。鲜血祭坛。",conn:[{"d":"南","l":152}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正6_160.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反6_160.png"},
+  161:{name:"远望角",x:1350,y:-380,desc:"世界尽头。石制港口。",conn:[{"d":"南","l":154}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正6_161.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反6_161.png"},
+  162:{name:"戈比尼克",x:1900,y:200,desc:"迷雾梦境。白色城堡。",conn:[],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正6_162.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反6_162.png"},
+  165:{name:"鸦巢废墟",x:900,y:-380,desc:"庙宇夷平。桥梁切断。",conn:[{"d":"南","l":152}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正6_165.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反6_165.png"},
+  170:{name:"远望角避难所",x:1350,y:-380,desc:"帐篷棚屋崖顶。",conn:[{"d":"南","l":154}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正6_170.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反6_170.png"},
+  180:{name:"欧林的哨站",x:200,y:500,desc:"冥尘边界前哨。",conn:[{"d":"南","l":141}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正7_180.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反7_180.png"},
+  185:{name:"图瓦坦之心",x:-100,y:0,desc:"颠倒的卡梅洛。亚瑟残影。",conn:[],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正7_185.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反7_185.png"},
+  190:{name:"卡梅洛",x:1600,y:150,desc:"阿瓦隆权力中心。兰斯洛特。",conn:[{"d":"西","l":138}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正7_190.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反7_190.png"},
+  195:{name:"被包围的卡梅洛",x:1600,y:150,desc:"难民与武装者。",conn:[{"d":"西","l":138}],front:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/正7_195.png",back:"https://cdn.jsdelivr.net/gh/jalaka12/avalon-map@main/images/locations/反7_195.png"},
+  199:{name:"图瓦坦",x:100,y:-50,desc:"先民故都。冥尘扭曲之城。",conn:[{"d":"东","l":111},{"d":"北","l":150},{"d":"西","l":156},{"d":"南","l":139}],front:"",back:""},
+};
+
+
+// ═══ 状态 ═══
+let currentLocation = 101;
+let revealedLocations = new Set([101,102,103,104,105]);
+let scale = 0.65;
+let panX = 50, panY = 120;
+let isDragging = false, dragStartX = 0, dragStartY = 0;
+const REPLACEMENTS = {101:121,106:123,108:110,113:122,115:125,116:126,131:137,134:147,135:148,136:149,138:142,160:165,161:170,190:195};
+
+// ═══ DOM ═══
+const container = document.getElementById('map-container');
+const canvas = document.getElementById('map-canvas');
+const connSvg = document.getElementById('connections-svg');
+const locLayer = document.getElementById('locations-layer');
+const topInfo = document.getElementById('top-info');
+const zoomLabel = document.getElementById('zoom-label');
+
+// ═══ 渲染 ═══
+function applyTransform() {
+    canvas.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
+    zoomLabel.textContent = Math.round(scale * 100) + '%';
+}
+
+function renderConnections() {
+    let svg = '';
+    const drawn = new Set();
+    for (const [num, loc] of Object.entries(LOCATIONS)) {
+        if (!loc.conn) continue;
+        for (const c of loc.conn) {
+            const key = [Math.min(num, c.l), Math.max(num, c.l)].join('-');
+            if (drawn.has(key)) continue;
+            drawn.add(key);
+            const target = LOCATIONS[c.l];
+            if (!target) continue;
+            const isCur = parseInt(num) === currentLocation || c.l === currentLocation;
+            const isRev = revealedLocations.has(parseInt(num)) && revealedLocations.has(c.l);
+            let cls = 'connection-line';
+            if (isCur) cls += ' current';
+            else if (isRev) cls += ' revealed';
+            svg += '<line class="' + cls + '" x1="' + loc.x + '" y1="' + loc.y + '" x2="' + target.x + '" y2="' + target.y + '" />';
+        }
+    }
+    connSvg.innerHTML = svg;
+}
+
+function renderLocations() {
+    let html = '';
+    const currLoc = LOCATIONS[currentLocation];
+    if (currLoc && revealedLocations.has(currentLocation)) {
+        html += '<div class="current-pulse" style="left:' + currLoc.x + 'px;top:' + currLoc.y + 'px"></div>';
+    }
+    
+    for (const [num, loc] of Object.entries(LOCATIONS)) {
+        const n = parseInt(num);
+        const isRev = revealedLocations.has(n);
+        const isCur = n === currentLocation;
+        const effNum = (isRev && REPLACEMENTS[n]) ? REPLACEMENTS[n] : n;
+        const effLoc = LOCATIONS[effNum] || loc;
+        
+        let cls = 'location-card';
+        if (!isRev) cls += ' unrevealed';
+        
+        let fcls = 'card-front';
+        if (isCur) fcls += ' current';
+        else if (isRev) fcls += ' revealed';
+        
+        const hasImg = effLoc.front && effLoc.front.length > 5;
+        const imgHtml = hasImg ? '<img src="' + effLoc.front + '" loading="lazy">' : '<span class="placeholder">' + (effLoc.name.charAt(0)) + '</span>';
+        const backImgHtml = (effLoc.back && effLoc.back.length > 5) ? '<img src="' + effLoc.back + '" style="width:100%;height:100px;object-fit:cover;border-radius:2px;margin-bottom:4px">' : '';
+        
+        html += '<div class="' + cls + '" id="loc-' + num + '" style="left:' + loc.x + 'px;top:' + loc.y + 'px" data-num="' + num + '" onclick="onCardClick(event,' + num + ')" ondblclick="flipCard(' + num + ')">';
+        html += '<div class="location-card-inner">';
+        html += '<div class="' + fcls + '"><div class="card-img">' + imgHtml + '</div>';
+        html += '<div class="card-number">' + num + '</div>';
+        html += '<div class="card-name">' + effLoc.name + '</div></div>';
+        html += '<div class="card-back">' + backImgHtml;
+        html += '<div class="back-title">' + effLoc.name + ' (' + num + ')</div>';
+        html += '<div class="back-desc">' + (effLoc.desc || '') + '</div>';
+        html += '<div class="back-conn">' + (effLoc.conn || []).map(function(c){return c.d + '→' + c.l}).join(' · ') + '</div>';
+        html += '</div></div></div>';
+    }
+    locLayer.innerHTML = html;
+}
+
+function updateUI() {
+    topInfo.textContent = '地点 ' + revealedLocations.size + '/63 已揭示 · 双击卡片翻面';
+}
+
+function flipCard(num) {
+    const card = document.getElementById('loc-' + num);
+    if (card) card.classList.toggle('flipped');
+}
+
+function onCardClick(e, num) {
+    if (e.detail === 2) return; // 双击翻面，不弹窗
+    const loc = LOCATIONS[num];
+    if (!loc || !revealedLocations.has(num)) return;
+    
+    const effNum = REPLACEMENTS[num] || num;
+    const effLoc = LOCATIONS[effNum] || loc;
+    
+    const modal = document.getElementById('modal');
+    const hasImg = effLoc.front && effLoc.front.length > 5;
+    document.getElementById('modal-img').innerHTML = hasImg ? '<img src="' + effLoc.front + '">' : '';
+    document.getElementById('modal-title').textContent = effLoc.name;
+    document.getElementById('modal-num').textContent = '地点 ' + effNum + (effNum !== num ? ' (替换自 ' + num + ')' : '');
+    document.getElementById('modal-desc').textContent = effLoc.desc || '';
+    document.getElementById('modal-conn').textContent = '连接：' + (effLoc.conn || []).map(function(c){return c.d + '→' + c.l + ' ' + (LOCATIONS[c.l] ? LOCATIONS[c.l].name : '')}).join(' · ');
+    modal.classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('active');
+}
+
+// ═══ 交互 ═══
+container.addEventListener('mousedown', function(e) {
+    if (e.target.closest('.location-card') || e.target.closest('.modal-overlay')) return;
+    isDragging = true;
+    container.classList.add('dragging');
+    dragStartX = e.clientX - panX;
+    dragStartY = e.clientY - panY;
+});
+
+window.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    panX = e.clientX - dragStartX;
+    panY = e.clientY - dragStartY;
+    applyTransform();
+});
+
+window.addEventListener('mouseup', function() {
+    isDragging = false;
+    container.classList.remove('dragging');
+});
+
+// 触摸支持
+container.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1 && !e.target.closest('.location-card')) {
+        isDragging = true;
+        dragStartX = e.touches[0].clientX - panX;
+        dragStartY = e.touches[0].clientY - panY;
+    }
+}, {passive: false});
+
+container.addEventListener('touchmove', function(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    panX = e.touches[0].clientX - dragStartX;
+    panY = e.touches[0].clientY - dragStartY;
+    applyTransform();
+}, {passive: false});
+
+container.addEventListener('touchend', function() { isDragging = false; });
+
+// 滚轮缩放
+container.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const oldScale = scale;
+    scale = Math.min(1.5, Math.max(0.3, scale - e.deltaY * 0.001));
+    panX = mx - (mx - panX) * scale / oldScale;
+    panY = my - (my - panY) * scale / oldScale;
+    applyTransform();
+}, {passive: false});
+
+// 按钮
+document.getElementById('btn-zoom-in').onclick = function() { scale = Math.min(1.5, scale + 0.1); applyTransform(); };
+document.getElementById('btn-zoom-out').onclick = function() { scale = Math.max(0.3, scale - 0.1); applyTransform(); };
+document.getElementById('btn-reset').onclick = function() { scale = 0.65; panX = 50; panY = 120; applyTransform(); };
+document.getElementById('btn-current').onclick = function() {
+    const loc = LOCATIONS[currentLocation];
+    if (loc) {
+        panX = -loc.x * scale + container.clientWidth / 2;
+        panY = -loc.y * scale + container.clientHeight / 2;
+        canvas.classList.add('smooth');
+        applyTransform();
+        setTimeout(function() { canvas.classList.remove('smooth'); }, 300);
+    }
+};
+document.getElementById('btn-reveal-all').onclick = function() {
+    Object.keys(LOCATIONS).forEach(function(n) { revealedLocations.add(parseInt(n)); });
+    renderAll();
+};
+document.getElementById('modal-close-btn').onclick = closeModal;
+document.getElementById('modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+// 键盘
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeModal();
+    if (e.key === '+' || e.key === '=') { scale = Math.min(1.5, scale + 0.1); applyTransform(); }
+    if (e.key === '-') { scale = Math.max(0.3, scale - 0.1); applyTransform(); }
+});
+
+// ═══ MVU 集成 ═══
+// 从 MVU 变量读取当前位置和已揭示地点
+async function loadFromMVU() {
+    try {
+        if (typeof window.parent !== 'undefined' && window.parent.TavernHelper) {
+            const vars = await window.parent.TavernHelper.getVariables({ type: 'message' });
+            if (vars && vars.stat_data && vars.stat_data['加洛琳']) {
+                const data = vars.stat_data['加洛琳'];
+                if (data['位置与时间'] && data['位置与时间']['当前地点']) {
+                    currentLocation = data['位置与时间']['当前地点'];
+                }
+                if (data['剧情'] && data['剧情']['状态标记']) {
+                    const marks = data['剧情']['状态标记'];
+                    marks.forEach(function(m) {
+                        const match = String(m).match(/已探索(\d+)/);
+                        if (match) revealedLocations.add(parseInt(match[1]));
+                    });
+                }
+            }
+        }
+    } catch(e) {
+        // MVU 不可用时使用默认值
+    }
+    renderAll();
+}
+
+function renderAll() {
+    renderConnections();
+    renderLocations();
+    updateUI();
+}
+
+// 启动
+loadFromMVU();
+applyTransform();
+</script>
+</body>
+</html>
