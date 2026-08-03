@@ -457,6 +457,8 @@ function buildBig(){
     var p = prs(), exp = expMap(p), curCt = cellOf(p.loc);
 
     if(mode === 'aerial'){
+        // 先铺手绘小图作为占位底，大图加载完成后自然覆盖
+        stage.appendChild(mkImg(SKETCH, 'base base-sketch'));
         stage.appendChild(mkImg(BASE_AERIAL, 'base base-aerial'));
         var cells = document.createElement('div'); cells.className = 'cells';
         for(var r=0; r<8; r++) for(var c=0; c<10; c++){
